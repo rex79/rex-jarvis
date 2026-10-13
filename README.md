@@ -80,7 +80,7 @@ nessun file. Per ripartire da zero basta cancellare `~/brain/digest/.visti.json`
 ### Interfaccia web
 `ruby jarvis.rb --site` trasforma i digest in `~/brain/digest/*.md` in un sito statico in
 `~/jarvis-site` (cambiabile con `JARVIS_SITE_DIR`): ultimo digest in home, archivio per giorno,
-ricerca, voci "poco rilevanti" nascoste di default, tema chiaro/scuro, adatto al telefono.
+ricerca, voci "poco rilevanti" solo attenuate (con un interruttore per nasconderle; i contatori delle sezioni seguono le card visibili), tema chiaro/scuro, adatto al telefono.
 Viene rigenerato da solo alla fine di ogni `--digest`. Nessuna risorsa esterna: HTML, CSS e JS inline.
 Titoli e testi arrivano da internet, quindi sono sempre escapati e i link accettati sono solo http(s).
 
