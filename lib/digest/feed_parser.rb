@@ -2,7 +2,7 @@ require "cgi"
 require "time"
 
 module DailyDigest
-  Item = Struct.new(:title, :url, :source, :published, :text, :position, :ranked, :stars, :score, keyword_init: true)
+  Item = Struct.new(:title, :url, :source, :published, :text, :position, :ranked, :stars, :score, :boost, keyword_init: true)
 
   # Parser RSS/Atom minimale, solo libreria standard (niente gem rexml).
   module FeedParser

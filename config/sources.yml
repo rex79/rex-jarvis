@@ -7,7 +7,10 @@ sources:
   - { name: "Hacker News",      type: feed, ranked: false, url: "https://hnrss.org/newest?q=ollama+OR+llama.cpp+OR+%22local+llm%22&points=40" }
   - { name: "Hugging Face",     type: feed, ranked: false, url: "https://huggingface.co/blog/feed.xml" }
   - { name: "Simon Willison",   type: feed, ranked: false, url: "https://simonwillison.net/atom/everything/" }
-  - { name: "GitHub",           type: github, topics: [ollama, llm, ai-agents, mcp], days: 7, min_stars: 30 }
+  # Release ufficiali = notizie vere. Le pre-release (-rc) sono escluse dall'URL.
+  - { name: "Ollama releases",  type: feed, url: "https://github.com/ollama/ollama/releases.atom", title_prefix: "Ollama ", boost: 3, exclude_url: "-(rc|alpha|beta)" }
+  # La ricerca per topic porta molto rumore: soglia alta, topic mirati.
+  - { name: "GitHub",           type: github, topics: [ollama, llama-cpp, local-llm], days: 7, min_stars: 150 }
 
 # Punteggio di rilevanza: parola trovata in titolo/testo = peso. `avoid` = penalità (-5).
 # Sotto `min_score` il contenuto viene scartato: meglio meno voci che voci inutili.

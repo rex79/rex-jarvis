@@ -11,13 +11,24 @@ module DailyDigest
     def self.collect(sources)
       sources.flat_map do |source|
         case source["type"]
-        when "feed"   then FeedParser.parse(get(source["url"]), source["name"], ranked: source["ranked"] == true)
+        when "feed"   then feed(source)
         when "github" then github(source)
         else []
         end
       rescue StandardError => e
         warn "⚠️  #{source['name']}: #{e.message}"
         []
+      end
+    end
+
+    # Opzioni per fonte: ranked, title_prefix (es. "Ollama " per dare contesto a "v0.40.4"),
+    # boost (punti extra: fonti ufficiali), exclude_url (regex, es. pre-release "-rc").
+    def self.feed(source)
+      items = FeedParser.parse(get(source["url"]), source["name"], ranked: source["ranked"] == true)
+      items = items.reject { |it| it.url.match?(Regexp.new(source["exclude_url"])) } if source["exclude_url"]
+      items.each do |it|
+        it.title = "#{source['title_prefix']}#{it.title}" if source["title_prefix"]
+        it.boost = source["boost"]
       end
     end
 
