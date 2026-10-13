@@ -1,42 +1,52 @@
 # Fonti del daily digest. `type: reddit` usa l'API con OAuth se REDDIT_CLIENT_ID/SECRET sono impostate, altrimenti il feed RSS.
 # `ranked: true` = l'ordine del feed è già una classifica (es. Reddit top).
-# Opzioni per fonte: boost, max_items (tetto voci), hours (finestra di freschezza, default 48),
+# Categorie: ogni gruppo ha dei posti garantiti nel digest (`slots`) e diventa una sezione del sito.
+# Il totale delle voci è la somma dei posti (JARVIS_DIGEST_ITEMS lo limita); i posti vuoti passano
+# alle migliori voci rimaste.
+categories:
+  - { id: ufficiali, label: "Ufficiali",           slots: 4 }
+  - { id: analisi,   label: "Analisi e newsletter", slots: 3 }
+  - { id: community, label: "Community",           slots: 3 }
+  - { id: stampa,    label: "Ricerca e stampa",    slots: 2 }
+  - { id: github,    label: "Progetti GitHub",     slots: 1 }
+
+# Opzioni per fonte: category, boost, max_items (tetto voci), hours (finestra di freschezza, default 48),
 # title_prefix, exclude_url, exclude_title.
 sources:
-  - { name: "r/LocalLLaMA", type: reddit, subreddit: LocalLLaMA }
-  - { name: "r/LocalLLM", type: reddit, subreddit: LocalLLM, max_items: 2 }
-  - { name: "r/AI_Agents", type: reddit, subreddit: AI_Agents, max_items: 2 }
-  - { name: "r/MachineLearning", type: reddit, subreddit: MachineLearning, max_items: 1 }
-  - { name: "Hacker News",      type: feed, ranked: false, url: "https://hnrss.org/newest?q=ollama+OR+llama.cpp+OR+%22local+llm%22&points=40" }
-  - { name: "Hugging Face",     type: feed, ranked: false, url: "https://huggingface.co/blog/feed.xml", hours: 168 }
-  - { name: "Simon Willison",   type: feed, ranked: false, url: "https://simonwillison.net/atom/everything/", hours: 72 }
+  - { name: "r/LocalLLaMA", type: reddit, subreddit: LocalLLaMA, category: community }
+  - { name: "r/LocalLLM", type: reddit, subreddit: LocalLLM, max_items: 2, category: community }
+  - { name: "r/AI_Agents", type: reddit, subreddit: AI_Agents, max_items: 2, category: community }
+  - { name: "r/MachineLearning", type: reddit, subreddit: MachineLearning, max_items: 1, category: community }
+  - { name: "Hacker News",      type: feed, ranked: false, url: "https://hnrss.org/newest?q=ollama+OR+llama.cpp+OR+%22local+llm%22&points=40", category: community }
+  - { name: "Hugging Face",     type: feed, ranked: false, url: "https://huggingface.co/blog/feed.xml", hours: 168, category: ufficiali }
+  - { name: "Simon Willison",   type: feed, ranked: false, url: "https://simonwillison.net/atom/everything/", hours: 72, category: analisi }
   # Release ufficiali = notizie vere. Le pre-release (-rc) sono escluse dall'URL.
-  - { name: "Ollama releases",  type: feed, url: "https://github.com/ollama/ollama/releases.atom", title_prefix: "Ollama ", boost: 3, exclude_url: "-(rc|alpha|beta)", max_items: 1, hours: 168 }
+  - { name: "Ollama releases",  type: feed, url: "https://github.com/ollama/ollama/releases.atom", title_prefix: "Ollama ", boost: 3, exclude_url: "-(rc|alpha|beta)", max_items: 1, hours: 168, category: ufficiali }
   # La ricerca per topic porta molto rumore: soglia alta, topic mirati.
-  - { name: "GitHub",           type: github, topics: [ollama, llama-cpp, local-llm], days: 7, min_stars: 150 }
+  - { name: "GitHub",           type: github, topics: [ollama, llama-cpp, local-llm], days: 7, min_stars: 150, category: github }
 
   # --- Laboratori e progetti (fonti primarie) ---
   # Feed non ufficiale di anthropic.com/news mantenuto da terzi: se si rompe, il digest lo salta con un avviso.
-  - { name: "Anthropic",        type: feed, url: "https://raw.githubusercontent.com/Olshansk/rss-feeds/main/feeds/feed_anthropic_news.xml", boost: 2, max_items: 2, hours: 168 }
-  - { name: "Google DeepMind",  type: feed, url: "https://deepmind.google/blog/rss.xml", boost: 2, max_items: 2, hours: 168 }
-  - { name: "Google AI",        type: feed, url: "https://blog.google/technology/ai/rss/", boost: 1, max_items: 2, hours: 168 }
-  - { name: "Ollama blog",      type: feed, url: "https://ollama.com/blog/rss.xml", boost: 3, max_items: 2, hours: 168 }
-  - { name: "NVIDIA",           type: feed, url: "https://developer.nvidia.com/blog/feed/", max_items: 2, hours: 72 }
-  - { name: "MCP spec",         type: feed, url: "https://github.com/modelcontextprotocol/modelcontextprotocol/releases.atom", title_prefix: "MCP spec ", boost: 3, exclude_url: "-(rc|alpha|beta)", max_items: 1, hours: 336 }
+  - { name: "Anthropic",        type: feed, url: "https://raw.githubusercontent.com/Olshansk/rss-feeds/main/feeds/feed_anthropic_news.xml", boost: 2, max_items: 2, hours: 168, category: ufficiali }
+  - { name: "Google DeepMind",  type: feed, url: "https://deepmind.google/blog/rss.xml", boost: 2, max_items: 2, hours: 168, category: ufficiali }
+  - { name: "Google AI",        type: feed, url: "https://blog.google/technology/ai/rss/", boost: 1, max_items: 2, hours: 168, category: ufficiali }
+  - { name: "Ollama blog",      type: feed, url: "https://ollama.com/blog/rss.xml", boost: 3, max_items: 2, hours: 168, category: ufficiali }
+  - { name: "NVIDIA",           type: feed, url: "https://developer.nvidia.com/blog/feed/", max_items: 2, hours: 72, category: ufficiali }
+  - { name: "MCP spec",         type: feed, url: "https://github.com/modelcontextprotocol/modelcontextprotocol/releases.atom", title_prefix: "MCP spec ", boost: 3, exclude_url: "-(rc|alpha|beta)", max_items: 1, hours: 336, category: ufficiali }
   # Rilascia quasi ogni giorno: del resto bastano le novità più recenti, una sola voce.
-  - { name: "Claude Code",      type: feed, url: "https://github.com/anthropics/claude-code/releases.atom", title_prefix: "Claude Code ", boost: 1, exclude_url: "-(rc|alpha|beta)", max_items: 1, hours: 96 }
+  - { name: "Claude Code",      type: feed, url: "https://github.com/anthropics/claude-code/releases.atom", title_prefix: "Claude Code ", boost: 1, exclude_url: "-(rc|alpha|beta)", max_items: 1, hours: 96, category: ufficiali }
 
   # --- Analisi e newsletter ---
-  - { name: "Latent Space",     type: feed, url: "https://www.latent.space/feed", boost: 2, max_items: 2, exclude_title: "Subscriber Exclusive|not much happened|Meetups?", hours: 96 }
-  - { name: "Import AI",        type: feed, url: "https://importai.substack.com/feed", boost: 2, max_items: 1, hours: 168 }
-  - { name: "Interconnects",    type: feed, url: "https://www.interconnects.ai/feed", boost: 2, max_items: 1, hours: 168 }
-  - { name: "Ahead of AI",      type: feed, url: "https://magazine.sebastianraschka.com/feed", boost: 2, max_items: 1, hours: 336 }
-  - { name: "Lobsters",         type: feed, url: "https://lobste.rs/t/ai.rss", max_items: 2, hours: 72 }
+  - { name: "Latent Space",     type: feed, url: "https://www.latent.space/feed", boost: 2, max_items: 2, exclude_title: "Subscriber Exclusive|not much happened|Meetups?", hours: 96, category: analisi }
+  - { name: "Import AI",        type: feed, url: "https://importai.substack.com/feed", boost: 2, max_items: 1, hours: 168, category: analisi }
+  - { name: "Interconnects",    type: feed, url: "https://www.interconnects.ai/feed", boost: 2, max_items: 1, hours: 168, category: analisi }
+  - { name: "Ahead of AI",      type: feed, url: "https://magazine.sebastianraschka.com/feed", boost: 2, max_items: 1, hours: 336, category: analisi }
+  - { name: "Lobsters",         type: feed, url: "https://lobste.rs/t/ai.rss", max_items: 2, hours: 72, category: community }
 
   # --- Ricerca e stampa generalista (solo se pertinenti per parole chiave) ---
-  - { name: "HF Papers",        type: feed, url: "https://papers.takara.ai/api/feed", max_items: 2, hours: 72 }
-  - { name: "MIT Tech Review",  type: feed, url: "https://www.technologyreview.com/topic/artificial-intelligence/feed", boost: 1, max_items: 2, hours: 96 }
-  - { name: "Ars Technica",     type: feed, url: "https://arstechnica.com/ai/feed/", max_items: 2, hours: 72 }
+  - { name: "HF Papers",        type: feed, url: "https://papers.takara.ai/api/feed", max_items: 2, hours: 72, category: stampa }
+  - { name: "MIT Tech Review",  type: feed, url: "https://www.technologyreview.com/topic/artificial-intelligence/feed", boost: 1, max_items: 2, hours: 96, category: stampa }
+  - { name: "Ars Technica",     type: feed, url: "https://arstechnica.com/ai/feed/", max_items: 2, hours: 72, category: stampa }
 
 # Punteggio di rilevanza: parola trovata in titolo/testo = peso. `avoid` = penalità (-5).
 # Sotto `min_score` il contenuto viene scartato: meglio meno voci che voci inutili.

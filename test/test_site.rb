@@ -85,3 +85,57 @@ class SiteTest < Minitest::Test
     end
   end
 end
+
+class SiteSectionsTest < Minitest::Test
+  MD = <<~MD
+    # AI Daily — 14 ottobre 2026
+
+    ## 1. Rilascio ufficiale
+    Fonte: Ollama blog · [link](https://ollama.com/blog/x)
+    Categoria: Ufficiali
+
+    Riassunto uno.
+    Perché ti interessa: molto.
+
+    ## 2. Discussione
+    Fonte: r/LocalLLaMA · [link](https://reddit.com/r/x/1)
+    Categoria: Community
+
+    Riassunto due.
+    Perché ti interessa: poco, generico.
+
+    ## 3. Altro ufficiale
+    Fonte: Anthropic · [link](https://anthropic.com/news/y)
+    Categoria: Ufficiali
+
+    Riassunto tre.
+    Perché ti interessa: boh.
+  MD
+
+  def test_entries_are_grouped_in_order_of_first_appearance
+    day = Site.parse(MD, "2026-10-14")
+    sections = Site.sections(day)
+    assert_equal %w[Ufficiali Community], sections.map(&:first)
+    assert_equal [2, 1], sections.map { |_, entries| entries.size }
+  end
+
+  def test_page_has_section_headings_nav_and_no_numbers
+    html = Site.page(Site.parse(MD, "2026-10-14"), [])
+    assert_includes html, '<h2 class="cat-title">Ufficiali <span>2</span></h2>'
+    assert_includes html, '<nav class="cats"'
+    assert_includes html, 'href="#cat-0-ufficiali"'
+    refute_includes html, 'class="n"'
+  end
+
+  def test_old_digest_without_categories_stays_a_flat_list
+    html = Site.page(Site.parse(SiteTest::DIGEST, "2026-10-13"), [])
+    refute_includes html, 'class="cat-title"'
+    refute_includes html, '<nav class="cats"'
+  end
+
+  def test_category_labels_are_escaped
+    md = MD.sub("Categoria: Community", "Categoria: <img src=x onerror=alert(1)>")
+    html = Site.page(Site.parse(md, "2026-10-14"), [])
+    refute_includes html, "<img src=x"
+  end
+end

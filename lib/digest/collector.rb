@@ -40,6 +40,7 @@ module DailyDigest
         it.boost = source["boost"]
         it.cap = source["max_items"]
         it.window = source["hours"]
+        it.category = source["category"]
       end
     end
 
@@ -77,7 +78,8 @@ module DailyDigest
             source: source["name"],
             published: Time.parse(repo["created_at"]),
             text: repo["description"].to_s,
-            stars: repo["stargazers_count"]
+            stars: repo["stargazers_count"],
+            category: source["category"]
           )
         end
       end

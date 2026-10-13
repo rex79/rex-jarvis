@@ -7,7 +7,7 @@ module DailyDigest
     MAX_PER_SOURCE = 3
     MAX_KEYWORD_SCORE = 6.0 # tetto: una voce piena di parole chiave non deve schiacciare le fonti primarie
 
-    def self.select(items, ranking, n:, hours:, now: Time.now, seen: nil)
+    def self.select(items, ranking, n:, hours:, now: Time.now, seen: nil, categories: nil)
       fresh = items.select { |it| it.published.nil? || it.published >= now - (it.window || hours) * 3600 }
       fresh = fresh.reject { |it| seen&.include?(it) }
 
@@ -16,7 +16,20 @@ module DailyDigest
         .reject { |it| it.score < ranking.fetch("min_score", 2) }
         .sort_by { |it| -it.score }
         .then { |sorted| cap_per_source(sorted) }
-        .first(n)
+        .then { |sorted| pick(sorted, categories, n) }
+    end
+
+    # Con le categorie ogni gruppo ha i suoi posti (`slots`): Reddit non può occupare tutto il
+    # digest e le fonti primarie, che pubblicano di rado, hanno un posto garantito. I posti
+    # lasciati vuoti passano alle migliori voci rimaste. Ordine finale: per categoria, poi punteggio.
+    def self.pick(sorted, categories, n)
+      return sorted.first(n) if categories.nil? || categories.empty?
+
+      order = categories.map { |c| c["id"] }
+      chosen = categories.flat_map { |c| sorted.select { |it| it.category == c["id"] }.first(c["slots"].to_i) }
+      chosen = chosen.sort_by { |it| -it.score }.first(n)
+      chosen += (sorted - chosen).first(n - chosen.size) if chosen.size < n
+      chosen.sort_by { |it| [order.index(it.category) || order.size, -it.score] }
     end
 
     def self.score(item, ranking)
