@@ -6,6 +6,20 @@ if ARGV.include?("--index")
   exit
 end
 
+if ARGV.include?("--site") || ARGV.include?("--publish")
+  require_relative "lib/site"
+  puts Site.build
+  if ARGV.include?("--publish")
+    require_relative "lib/publisher"
+    begin
+      puts Publisher.publish
+    rescue Publisher::Error => e
+      abort "❌ #{e.message}"
+    end
+  end
+  exit
+end
+
 if ARGV.include?("--digest")
   require_relative "lib/daily_digest"
   DailyDigest.run(dry_run: ARGV.include?("--dry-run"))

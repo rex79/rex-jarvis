@@ -5,6 +5,8 @@ require_relative "digest/ranker"
 require_relative "digest/builder"
 require_relative "digest/seen"
 require_relative "tools/notes"
+require_relative "site"
+require_relative "publisher"
 
 module DailyDigest
   # dry_run: raccoglie e classifica, stampa la lista, non usa Ollama né scrive file.
@@ -35,6 +37,18 @@ module DailyDigest
 
     seen.add(top) # solo dopo aver scritto il file: un'esecuzione fallita non brucia le voci
     seen.save
+
+    begin
+      puts Site.build
+    rescue StandardError => e
+      warn "⚠️  sito non aggiornato (il digest è comunque salvato): #{e.message}"
+    end
+
+    begin
+      puts Publisher.publish if Publisher.configured?
+    rescue Publisher::Error => e
+      warn "⚠️  pubblicazione fallita (il digest è comunque salvato): #{e.message}"
+    end
 
     begin
       puts Notes.build_index # rende il digest ricercabile da search_notes

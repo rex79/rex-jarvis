@@ -76,3 +76,55 @@ Dopo ogni digest i contenuti pubblicati vengono registrati in `~/brain/digest/.v
 ricompaiono e al loro posto entrano altre voci. Rilanciare il digest nello stesso giorno
 mantiene quelle già pubblicate oggi. Se un giorno non c'è nulla di nuovo, non viene creato
 nessun file. Per ripartire da zero basta cancellare `~/brain/digest/.visti.json`.
+
+### Interfaccia web
+`ruby jarvis.rb --site` trasforma i digest in `~/brain/digest/*.md` in un sito statico in
+`~/jarvis-site` (cambiabile con `JARVIS_SITE_DIR`): ultimo digest in home, archivio per giorno,
+ricerca, voci "poco rilevanti" nascoste di default, tema chiaro/scuro, adatto al telefono.
+Viene rigenerato da solo alla fine di ogni `--digest`. Nessuna risorsa esterna: HTML, CSS e JS inline.
+Titoli e testi arrivano da internet, quindi sono sempre escapati e i link accettati sono solo http(s).
+
+Per consultarlo dalla rete di casa serve solo un server di file (il sito pubblica solo quella
+cartella, non `~/brain`). Sul Mac mini:
+```bash
+python3 -m http.server 8080 --bind 0.0.0.0 --directory ~/jarvis-site
+```
+poi `http://<ip-del-mac-mini>:8080` dal telefono o dal computer. Non esporlo su internet: non ha
+autenticazione. Per l'accesso da fuori casa usa una VPN (per esempio Tailscale).
+
+Per averlo sempre attivo all'avvio, crea `~/.config/systemd/user/jarvis-site.service`:
+```ini
+[Unit]
+Description=Jarvis site
+
+[Service]
+ExecStart=/usr/bin/python3 -m http.server 8080 --bind 0.0.0.0 --directory %h/jarvis-site
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+```
+```bash
+systemctl --user daemon-reload && systemctl --user enable --now jarvis-site
+loginctl enable-linger "$USER"   # resta attivo anche senza sessione aperta
+```
+
+### Pubblicazione su uno spazio web (FTPS/SFTP)
+Se non vuoi servire il sito dal Mac mini, Jarvis può caricarlo sul tuo hosting. In `~/.jarvis_env`:
+```
+JARVIS_FTP_URL=ftps://ftp.tuodominio.it/public_html/jarvis/
+JARVIS_FTP_USER=...
+JARVIS_FTP_PASSWORD=...
+```
+```bash
+ruby jarvis.rb --publish   # genera il sito e lo carica
+```
+Con `JARVIS_FTP_URL` impostata, ogni `--digest` pubblica da solo alla fine (un errore di upload
+non perde il digest). Usa `curl`: schemi `ftps://` (TLS implicito), `sftp://` oppure `ftp://`, che
+pretende comunque TLS esplicito; l'FTP in chiaro si consente solo con `JARVIS_FTP_ALLOW_PLAIN=1`
+(sconsigliato: la password viaggia in chiaro). Le credenziali passano a `curl` da stdin, non stanno
+nell'URL né nella lista dei processi e vengono oscurate negli errori. `index.html` è caricato per ultimo.
+
+Attenzione: lo spazio web è **pubblico**. Le pagine hanno `noindex` e c'è un `robots.txt`, ma non
+sono una protezione: metti una password sulla cartella dal pannello dell'hosting (es. "Directory
+Privacy" in cPanel o `.htaccess` con Basic auth) e non pubblicare nulla di riservato.
