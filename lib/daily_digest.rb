@@ -1,0 +1,39 @@
+require "yaml"
+require_relative "config"
+require_relative "digest/collector"
+require_relative "digest/ranker"
+require_relative "digest/builder"
+require_relative "tools/notes"
+
+module DailyDigest
+  # dry_run: raccoglie e classifica, stampa la lista, non usa Ollama né scrive file.
+  def self.run(dry_run: false, now: Time.now)
+    config = YAML.load_file(Config::SOURCES_FILE)
+
+    items = Collector.collect(config["sources"])
+    puts "Raccolti #{items.size} contenuti da #{items.map(&:source).uniq.size} fonti"
+
+    top = Ranker.select(items, config["ranking"], n: Config::DIGEST_ITEMS, hours: Config::DIGEST_HOURS, now: now)
+    return puts("Nessun contenuto rilevante.") if top.empty?
+
+    if dry_run
+      top.each { |it| puts format("%5.1f  %-16s %s\n       %s", it.score, it.source, it.title, it.url) }
+      return
+    end
+
+    builder = Builder.new
+    summaries = top.each_with_index.map do |item, i|
+      puts "Riassumo #{i + 1}/#{top.size}: #{item.title[0, 60]}"
+      builder.summarize(item)
+    end
+
+    path = builder.write(builder.render(top, summaries, now), now)
+    puts "Digest scritto in #{path}"
+
+    begin
+      puts Notes.build_index # rende il digest ricercabile da search_notes
+    rescue StandardError => e
+      warn "⚠️  indicizzazione fallita (il digest è comunque salvato): #{e.message}"
+    end
+  end
+end

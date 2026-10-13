@@ -7,4 +7,9 @@ module Config
   MAX_TURNS   = 8
   MAX_TOOL_OUTPUT = 4000
   KEEP_ALIVE  = "30m"
+
+  DIGEST_MODEL  = ENV.fetch("JARVIS_DIGEST_MODEL", MAIN_MODEL)
+  DIGEST_ITEMS  = Integer(ENV.fetch("JARVIS_DIGEST_ITEMS", "8"))
+  DIGEST_HOURS  = Integer(ENV.fetch("JARVIS_DIGEST_HOURS", "48"))
+  SOURCES_FILE  = File.expand_path("../config/sources.yml", __dir__)
 end

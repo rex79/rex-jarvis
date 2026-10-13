@@ -8,7 +8,7 @@ class Ollama
     @model = model
   end
 
-  def chat(messages, tools: [])
+  def chat(messages, tools: [], options: nil)
     payload = {
       "model" => @model,
       "messages" => messages,
@@ -17,6 +17,7 @@ class Ollama
       "keep_alive" => Config::KEEP_ALIVE
     }
     payload["tools"] = tools unless tools.empty?
+    payload["options"] = options if options
 
     started = Time.now
     result = post("/api/chat", payload)

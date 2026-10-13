@@ -6,6 +6,12 @@ if ARGV.include?("--index")
   exit
 end
 
+if ARGV.include?("--digest")
+  require_relative "lib/daily_digest"
+  DailyDigest.run(dry_run: ARGV.include?("--dry-run"))
+  exit
+end
+
 unless Dir.exist?(Config::BRAIN_DIR)
   abort "Cartella note non trovata: #{Config::BRAIN_DIR} (creala o imposta JARVIS_BRAIN)"
 end
