@@ -57,3 +57,15 @@ Variabili: `JARVIS_DIGEST_PROVIDER` (`ollama` o `openrouter`), `JARVIS_DIGEST_MO
 `JARVIS_DIGEST_HOURS` (48), `GITHUB_TOKEN` (opzionale, alza i limiti dell'API).
 I contenuti dei feed sono non attendibili: il modello che li riassume non ha tool
 e i link nel digest li scrive il codice, non il modello.
+
+### Reddit con OAuth
+Reddit limita spesso i feed RSS pubblici (errore 429). Con un'app gratuita di tipo *script*
+(reddit.com/prefs/apps) Jarvis usa l'API ufficiale. Servono solo id e secret dell'app,
+**non** la password dell'account: legge contenuti pubblici. In `~/.jarvis_env`:
+```
+REDDIT_CLIENT_ID=...
+REDDIT_CLIENT_SECRET=...
+REDDIT_USER_AGENT=jarvis-digest/0.1 by u/tuo_username
+```
+Senza credenziali, o se l'API rifiuta quelle indicate, il digest usa i feed RSS e lo segnala.
+Il token resta in memoria e non viene mai scritto su disco né stampato.

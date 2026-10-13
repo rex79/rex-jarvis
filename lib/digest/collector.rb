@@ -3,6 +3,7 @@ require "json"
 require "uri"
 require "time"
 require_relative "feed_parser"
+require_relative "reddit"
 
 module DailyDigest
   module Collector
@@ -12,6 +13,7 @@ module DailyDigest
       sources.flat_map do |source|
         case source["type"]
         when "feed"   then feed(source)
+        when "reddit" then reddit(source)
         when "github" then github(source)
         else []
         end
@@ -30,6 +32,26 @@ module DailyDigest
         it.title = "#{source['title_prefix']}#{it.title}" if source["title_prefix"]
         it.boost = source["boost"]
       end
+    end
+
+    # API ufficiale con OAuth se ci sono le credenziali; altrimenti (o se l'API fallisce)
+    # il feed RSS pubblico, che Reddit però limita spesso con errori 429.
+    def self.reddit(source)
+      if RedditClient.configured? && !@reddit_auth_failed
+        begin
+          return (@reddit_client ||= RedditClient.new).top(source["subreddit"])
+        rescue RedditClient::AuthError => e
+          @reddit_auth_failed = true # inutile riprovare per gli altri subreddit
+          warn "⚠️  #{e.message}: uso i feed RSS"
+        rescue StandardError => e
+          warn "⚠️  #{source['name']}: API Reddit non riuscita (#{e.message}), uso il feed RSS"
+        end
+      elsif !RedditClient.configured? && !@reddit_warned
+        @reddit_warned = true
+        warn "⚠️  REDDIT_CLIENT_ID/REDDIT_CLIENT_SECRET non impostate: uso i feed RSS di Reddit (spesso limitati)"
+      end
+
+      feed(source.merge("url" => "https://www.reddit.com/r/#{source['subreddit']}/top/.rss?t=day", "ranked" => true))
     end
 
     def self.github(source)
