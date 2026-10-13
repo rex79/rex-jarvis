@@ -15,7 +15,7 @@ module Config
   DIGEST_PROVIDER = ENV.fetch("JARVIS_DIGEST_PROVIDER", "ollama") # ollama | openrouter
   DIGEST_MODEL  = ENV["JARVIS_DIGEST_MODEL"] || (DIGEST_PROVIDER == "ollama" ? MAIN_MODEL : nil)
   OPENROUTER_URL = ENV.fetch("OPENROUTER_URL", "https://openrouter.ai/api/v1/chat/completions")
-  DIGEST_ITEMS  = Integer(ENV.fetch("JARVIS_DIGEST_ITEMS", "8"))
+  DIGEST_ITEMS  = Integer(ENV.fetch("JARVIS_DIGEST_ITEMS", "10"))
   DIGEST_HOURS  = Integer(ENV.fetch("JARVIS_DIGEST_HOURS", "48"))
   SITE_DIR      = File.expand_path(ENV.fetch("JARVIS_SITE_DIR", "~/jarvis-site"))
   SOURCES_FILE  = File.expand_path("../config/sources.yml", __dir__)

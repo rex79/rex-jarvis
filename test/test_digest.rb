@@ -341,3 +341,83 @@ class SeenTest < Minitest::Test
     end
   end
 end
+
+class KeywordAndSourceOptionsTest < Minitest::Test
+  def item(title, source: "S", **extra)
+    DailyDigest::Item.new(title: title, url: "https://a.com/#{title.hash}", source: source, published: Time.now, text: "", **extra)
+  end
+
+  def test_keywords_match_whole_words_not_substrings
+    r = DailyDigest::Ranker
+    refute r.keyword?("cloud storage and average fragments", "rag")
+    assert r.keyword?("a rag pipeline", "rag")
+    assert r.keyword?("rag-based search", "rag")
+    assert r.keyword?("new llms arrive", "llm")      # plurale
+    assert r.keyword?("Qwen3-1.7B released", "qwen") # cifre dopo
+    refute r.keyword?("language models", "llm")
+    assert r.keyword?("quantization tricks", "quantiz") # parole lunghe: prefisso
+    assert r.keyword?("Agentic agents", "agent")
+    assert r.keyword?("llama.cpp update", "llama.cpp")
+  end
+
+  def test_max_items_overrides_default_cap_per_source
+    items = (1..6).map { |i| item("Claude Code release #{i}", source: "CC", boost: 5, cap: 1) } +
+            (1..6).map { |i| item("Altra notizia #{i}", source: "X", boost: 5) }
+    result = DailyDigest::Ranker.select(items, {}, n: 20, hours: 48)
+    assert_equal 1, result.count { |i| i.source == "CC" }
+    assert_equal DailyDigest::Ranker::MAX_PER_SOURCE, result.count { |i| i.source == "X" }
+  end
+
+  def test_feed_exclude_title_and_max_items
+    xml = '<feed><entry><title>[Subscriber Exclusive] NYC Meetups</title><link href="https://a.com/1"/></entry>' \
+          '<entry><title>Notizia vera</title><link href="https://a.com/2"/></entry>' \
+          '<entry><title>AINews: not much happened today</title><link href="https://a.com/3"/></entry></feed>'
+    source = { "name" => "LS", "url" => "x", "exclude_title" => "Subscriber Exclusive|not much happened", "max_items" => 2 }
+    DailyDigest::Collector.stub(:get, xml) do
+      items = DailyDigest::Collector.feed(source)
+      assert_equal ["Notizia vera"], items.map(&:title)
+      assert_equal 2, items.first.cap
+    end
+  end
+
+  def test_shipped_sources_file_is_valid
+    config = YAML.load_file(Config::SOURCES_FILE)
+    names = config["sources"].map { |s| s["name"] }
+    assert_equal names.uniq, names, "nomi di fonte duplicati"
+    config["sources"].each do |s|
+      assert %w[feed reddit github].include?(s["type"]), "tipo non valido in #{s['name']}"
+      Regexp.new(s["exclude_url"]) if s["exclude_url"]
+      Regexp.new(s["exclude_title"]) if s["exclude_title"]
+      assert_match(%r{\Ahttps://}, s["url"], "#{s['name']} deve usare https") if s["type"] == "feed"
+    end
+  end
+end
+
+class FreshnessWindowTest < Minitest::Test
+  def item(title, age_hours, **extra)
+    DailyDigest::Item.new(title: title, url: "https://a.com/#{title}", source: title, published: Time.now - age_hours * 3600, text: "", boost: 5, **extra)
+  end
+
+  def test_per_source_window_keeps_slow_publishers
+    items = [item("Blog lento", 100, window: 168), item("Feed veloce", 100), item("Fresco", 5)]
+    titles = DailyDigest::Ranker.select(items, {}, n: 10, hours: 48).map(&:title)
+    assert_includes titles, "Blog lento"
+    assert_includes titles, "Fresco"
+    refute_includes titles, "Feed veloce"
+  end
+
+  def test_feed_and_reddit_options_are_applied_by_decorate
+    source = { "name" => "R", "title_prefix" => "P ", "boost" => 2, "max_items" => 1, "hours" => 96 }
+    items = [DailyDigest::Item.new(title: "T", url: "https://a.com/1", source: "R")]
+    out = DailyDigest::Collector.decorate(items, source).first
+    assert_equal ["P T", 2, 1, 96], [out.title, out.boost, out.cap, out.window]
+  end
+end
+
+class KeywordCapTest < Minitest::Test
+  def test_keyword_score_is_capped
+    ranking = { "keywords" => { "alfa" => 4, "beta" => 4, "gamma" => 4 } }
+    item = DailyDigest::Item.new(title: "alfa beta gamma", url: "https://a.com/1", source: "S")
+    assert_equal DailyDigest::Ranker::MAX_KEYWORD_SCORE, DailyDigest::Ranker.score(item, ranking)
+  end
+end

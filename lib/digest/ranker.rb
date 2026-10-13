@@ -5,10 +5,10 @@ module DailyDigest
   # Filtra, deduplica e ordina senza LLM: sul tuo hardware ogni token costa.
   module Ranker
     MAX_PER_SOURCE = 3
+    MAX_KEYWORD_SCORE = 6.0 # tetto: una voce piena di parole chiave non deve schiacciare le fonti primarie
 
     def self.select(items, ranking, n:, hours:, now: Time.now, seen: nil)
-      cutoff = now - hours * 3600
-      fresh = items.select { |it| it.published.nil? || it.published >= cutoff }
+      fresh = items.select { |it| it.published.nil? || it.published >= now - (it.window || hours) * 3600 }
       fresh = fresh.reject { |it| seen&.include?(it) }
 
       deduplicate(fresh)
@@ -23,12 +23,21 @@ module DailyDigest
       text = "#{item.title} #{item.text}".downcase
       total = 0.0
 
-      ranking.fetch("keywords", {}).each { |word, weight| total += weight if text.include?(word.to_s.downcase) }
+      keywords = ranking.fetch("keywords", {}).sum { |word, weight| keyword?(text, word.to_s) ? weight : 0 }
+      total += [keywords, MAX_KEYWORD_SCORE].min
       total += 3.0 * (1 - [item.position.to_i, 25].min / 25.0) if item.ranked
       total += Math.log10(item.stars + 1) if item.stars
       total += item.boost.to_f
       total -= 5 if ranking.fetch("avoid", []).any? { |word| text.include?(word.downcase) }
       total
+    end
+
+    # Parola intera, non sottostringa ("rag" non deve scattare su "storage"). Le parole brevi
+    # ammettono il plurale e cifre dopo ("llms", "qwen3"); le lunghe sono un prefisso ("quantiz").
+    def self.keyword?(text, word)
+      escaped = Regexp.escape(word.downcase)
+      pattern = word.length <= 4 ? /\b#{escaped}s?(?![a-z])/i : /\b#{escaped}/i
+      text.match?(pattern)
     end
 
     # Stesso link o stesso titolo normalizzato = stesso contenuto; si tiene il primo.
@@ -61,7 +70,7 @@ module DailyDigest
 
     def self.cap_per_source(sorted)
       counts = Hash.new(0)
-      sorted.select { |it| (counts[it.source] += 1) <= MAX_PER_SOURCE }
+      sorted.select { |it| (counts[it.source] += 1) <= (it.cap || MAX_PER_SOURCE) }
     end
   end
 end

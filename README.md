@@ -128,3 +128,17 @@ nell'URL né nella lista dei processi e vengono oscurate negli errori. `index.ht
 Attenzione: lo spazio web è **pubblico**. Le pagine hanno `noindex` e c'è un `robots.txt`, ma non
 sono una protezione: metti una password sulla cartella dal pannello dell'hosting (es. "Directory
 Privacy" in cPanel o `.htaccess` con Basic auth) e non pubblicare nulla di riservato.
+
+### Fonti e punteggio
+Le fonti sono in `config/sources.yml`; ogni feed accetta queste opzioni:
+`boost` (punti extra per le fonti primarie), `max_items` (tetto di voci di quella fonte in un digest),
+`hours` (finestra di freschezza: 48 di default, più lunga per blog e newsletter che pubblicano di rado —
+la memoria dei link visti evita i doppioni), `title_prefix`, `exclude_url` ed `exclude_title` (regex).
+Le parole chiave contano come parola intera ("rag" non scatta su "storage"; "llm" vale anche per "LLMs")
+e il loro contributo ha un tetto, così una voce piena di parole chiave non schiaccia le fonti primarie.
+Il digest ha 10 voci (`JARVIS_DIGEST_ITEMS`).
+
+Fonti valutate e scartate: il feed di OpenAI (quasi solo storie di clienti), Mistral (nessun feed),
+il blog di Qwen (fermo da oltre un anno), arXiv (centinaia di articoli al giorno), TechCrunch e The Verge
+(troppo rumore generalista) e le fonti in italiano (richiederebbero parole chiave in italiano).
+Un feed che smette di funzionare viene saltato con un avviso: non ferma il digest.
