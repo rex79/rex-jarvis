@@ -3,6 +3,7 @@ require_relative "config"
 require_relative "digest/collector"
 require_relative "digest/ranker"
 require_relative "digest/builder"
+require_relative "digest/seen"
 require_relative "tools/notes"
 
 module DailyDigest
@@ -15,7 +16,8 @@ module DailyDigest
     items = Collector.collect(config["sources"])
     puts "Raccolti #{items.size} contenuti da #{items.map(&:source).uniq.size} fonti"
 
-    top = Ranker.select(items, config["ranking"], n: Config::DIGEST_ITEMS, hours: Config::DIGEST_HOURS, now: now)
+    seen = Seen.new(now: now)
+    top = Ranker.select(items, config["ranking"], n: Config::DIGEST_ITEMS, hours: Config::DIGEST_HOURS, now: now, seen: seen)
     return puts("Nessun contenuto rilevante.") if top.empty?
 
     if dry_run
@@ -30,6 +32,9 @@ module DailyDigest
 
     path = builder.write(builder.render(top, summaries, now), now)
     puts "Digest scritto in #{path}"
+
+    seen.add(top) # solo dopo aver scritto il file: un'esecuzione fallita non brucia le voci
+    seen.save
 
     begin
       puts Notes.build_index # rende il digest ricercabile da search_notes

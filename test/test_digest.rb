@@ -280,3 +280,64 @@ class RedditAuthFailureTest < Minitest::Test
     DailyDigest::Collector.instance_variable_set(:@reddit_auth_failed, nil)
   end
 end
+
+class SeenTest < Minitest::Test
+  include DailyDigest
+
+  def item(title, url) = Item.new(title: title, url: url, source: "S", published: Time.now, text: "", boost: 5)
+
+  def seen_at(dir, day) = Seen.new(File.join(dir, "digest", ".visti.json"), now: Time.new(2026, 10, day, 8))
+
+  def test_item_published_yesterday_is_excluded_today
+    Dir.mktmpdir do |dir|
+      first = seen_at(dir, 13)
+      first.add([item("Uno", "https://a.com/1")])
+      first.save
+
+      assert seen_at(dir, 14).include?(item("Uno", "https://www.a.com/1/")), "stesso link normalizzato"
+      assert seen_at(dir, 14).include?(item("UNO!", "https://b.com/altro")), "stesso titolo normalizzato"
+      refute seen_at(dir, 14).include?(item("Due", "https://a.com/2"))
+    end
+  end
+
+  def test_same_day_rerun_is_not_excluded
+    Dir.mktmpdir do |dir|
+      first = seen_at(dir, 13)
+      first.add([item("Uno", "https://a.com/1")])
+      first.save
+      refute seen_at(dir, 13).include?(item("Uno", "https://a.com/1"))
+    end
+  end
+
+  def test_old_entries_are_pruned_on_save
+    Dir.mktmpdir do |dir|
+      old = Seen.new(File.join(dir, "digest", ".visti.json"), now: Time.new(2026, 8, 1))
+      old.add([item("Vecchio", "https://a.com/old")])
+      old.save
+      later = seen_at(dir, 13)
+      later.save
+      refute JSON.parse(File.read(File.join(dir, "digest", ".visti.json"))).keys.any? { |k| k.include?("old") }
+    end
+  end
+
+  def test_corrupt_file_starts_empty_with_warning
+    Dir.mktmpdir do |dir|
+      FileUtils.mkdir_p(File.join(dir, "digest"))
+      File.write(File.join(dir, "digest", ".visti.json"), "{non json")
+      _out, err = capture_io { refute seen_at(dir, 13).include?(item("Uno", "https://a.com/1")) }
+      assert_includes err, "danneggiato"
+    end
+  end
+
+  def test_select_skips_seen_and_fills_with_others
+    Dir.mktmpdir do |dir|
+      first = seen_at(dir, 13)
+      first.add([item("Vecchia notizia", "https://a.com/1")])
+      first.save
+
+      items = [item("Vecchia notizia", "https://a.com/1"), item("Notizia nuova", "https://a.com/2")]
+      result = Ranker.select(items, {}, n: 5, hours: 48, seen: seen_at(dir, 14))
+      assert_equal ["Notizia nuova"], result.map(&:title)
+    end
+  end
+end

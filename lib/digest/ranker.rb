@@ -6,9 +6,10 @@ module DailyDigest
   module Ranker
     MAX_PER_SOURCE = 3
 
-    def self.select(items, ranking, n:, hours:, now: Time.now)
+    def self.select(items, ranking, n:, hours:, now: Time.now, seen: nil)
       cutoff = now - hours * 3600
       fresh = items.select { |it| it.published.nil? || it.published >= cutoff }
+      fresh = fresh.reject { |it| seen&.include?(it) }
 
       deduplicate(fresh)
         .each { |it| it.score = score(it, ranking) }
@@ -34,12 +35,17 @@ module DailyDigest
     def self.deduplicate(items)
       seen = {}
       items.each_with_object([]) do |it, kept|
-        keys = [url_key(it.url), "t:#{title_key(it.title)}"]
+        keys = keys(it)
         next if keys.any? { |k| seen[k] }
 
         keys.each { |k| seen[k] = true }
         kept << it
       end
+    end
+
+    # Chiavi di identità di un contenuto: link normalizzato e titolo normalizzato.
+    def self.keys(item)
+      [url_key(item.url), "t:#{title_key(item.title)}"]
     end
 
     def self.url_key(url)
