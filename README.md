@@ -69,3 +69,10 @@ REDDIT_USER_AGENT=jarvis-digest/0.1 by u/tuo_username
 ```
 Senza credenziali, o se l'API rifiuta quelle indicate, il digest usa i feed RSS e lo segnala.
 Il token resta in memoria e non viene mai scritto su disco né stampato.
+
+### Memoria dei link già visti
+Dopo ogni digest i contenuti pubblicati vengono registrati in `~/brain/digest/.visti.json`
+(link e titolo normalizzati, voci più vecchie di 30 giorni eliminate). Il giorno dopo non
+ricompaiono e al loro posto entrano altre voci. Rilanciare il digest nello stesso giorno
+mantiene quelle già pubblicate oggi. Se un giorno non c'è nulla di nuovo, non viene creato
+nessun file. Per ripartire da zero basta cancellare `~/brain/digest/.visti.json`.
