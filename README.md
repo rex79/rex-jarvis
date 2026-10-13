@@ -20,3 +20,21 @@ ruby test/test_tools.rb   # test
 ## Tool dell'agente
 `search_notes`, `list_files`, `read_file`, `save_note`, `current_time`.
 L'accesso ai file è limitato alla cartella note.
+
+## Daily digest
+Raccoglie Reddit, Hacker News, blog e GitHub (`config/sources.yml`), deduplica e classifica
+con regole semplici, poi riassume in italiano i migliori con Ollama. Il risultato è
+`~/brain/digest/AAAA-MM-GG.md` e viene indicizzato, quindi `search_notes` lo trova.
+
+```bash
+ruby jarvis.rb --digest --dry-run   # solo raccolta e classifica, senza Ollama
+ruby jarvis.rb --digest             # digest completo
+```
+Ogni mattina alle 7 con cron (`crontab -e`):
+```
+0 7 * * * cd ~/jarvis && ruby jarvis.rb --digest >> ~/jarvis-digest.log 2>&1
+```
+Variabili: `JARVIS_DIGEST_MODEL` (default = modello principale), `JARVIS_DIGEST_ITEMS` (8),
+`JARVIS_DIGEST_HOURS` (48), `GITHUB_TOKEN` (opzionale, alza i limiti dell'API).
+I contenuti dei feed sono non attendibili: il modello che li riassume non ha tool
+e i link nel digest li scrive il codice, non il modello.
