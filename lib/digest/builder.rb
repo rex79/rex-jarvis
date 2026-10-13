@@ -1,5 +1,6 @@
 require "fileutils"
 require_relative "../ollama"
+require_relative "../openrouter"
 require_relative "../config"
 
 module DailyDigest
@@ -17,7 +18,15 @@ module DailyDigest
          per chi usa modelli locali, oppure scrivi "Perché ti interessa: poco, generico." se non c'entra.
     PROMPT
 
-    def initialize(llm: Ollama.new(model: Config::DIGEST_MODEL))
+    def self.default_llm
+      case Config::DIGEST_PROVIDER
+      when "ollama"     then Ollama.new(model: Config::DIGEST_MODEL)
+      when "openrouter" then OpenRouter.new(model: Config::DIGEST_MODEL)
+      else raise ArgumentError, "JARVIS_DIGEST_PROVIDER non valido: #{Config::DIGEST_PROVIDER} (ollama | openrouter)"
+      end
+    end
+
+    def initialize(llm: self.class.default_llm)
       @llm = llm
     end
 
@@ -28,14 +37,17 @@ module DailyDigest
       ]
       answer = @llm.chat(messages, options: { num_predict: 160, temperature: 0.2 })["message"]["content"].to_s
       sanitize(answer)
+    rescue OpenRouter::AuthError
+      raise # chiave errata o credito finito: inutile ripetere per ogni voce, il digest si ferma
     rescue StandardError => e
       warn "⚠️  riassunto fallito per '#{item.title}': #{e.message}"
       item.text[0, 200]
     end
 
-    def render(items, summaries, date, model: Config::DIGEST_MODEL)
+    def render(items, summaries, date, model: @llm.model)
+      where = Config::DIGEST_PROVIDER == "ollama" ? "in locale" : "via #{Config::DIGEST_PROVIDER}"
       lines = ["# AI Daily — #{date.day} #{MONTHS[date.month - 1]} #{date.year}", ""]
-      lines << "> #{items.size} segnalazioni selezionate e riassunte in locale con #{model}. " \
+      lines << "> #{items.size} segnalazioni selezionate e riassunte #{where} con #{model}. " \
                "I post Reddit sono segnalazioni da verificare, non notizie confermate."
       lines << ""
 

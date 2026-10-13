@@ -83,6 +83,37 @@ class DigestTest < Minitest::Test
     assert_includes md, "[link](https://a.com/1)"
   end
 
+  def test_openrouter_requires_key_and_model
+    assert_raises(OpenRouter::AuthError) { OpenRouter.new(model: "a/b", api_key: "") }
+    assert_raises(ArgumentError) { OpenRouter.new(model: nil, api_key: "k") }
+  end
+
+  def test_openrouter_chat_maps_options_and_response
+    client = OpenRouter.new(model: "a/b", api_key: "sk-secret")
+    sent = nil
+    client.define_singleton_method(:post) do |payload|
+      sent = payload
+      { "choices" => [{ "message" => { "content" => "ciao" } }] }
+    end
+
+    out = client.chat([{ role: "user", content: "x" }], options: { num_predict: 160, temperature: 0.2 })
+    assert_equal "ciao", out["message"]["content"]
+    assert_equal({ "model" => "a/b", "max_tokens" => 160, "temperature" => 0.2 }, sent.reject { |k, _| k == "messages" })
+  end
+
+  def test_openrouter_empty_response_raises_without_leaking_key
+    client = OpenRouter.new(model: "a/b", api_key: "sk-secret")
+    client.define_singleton_method(:post) { |_| { "error" => { "message" => "modello non disponibile" } } }
+    error = assert_raises(RuntimeError) { client.chat([]) }
+    refute_includes error.message, "sk-secret"
+  end
+
+  def test_auth_error_stops_digest_instead_of_falling_back
+    llm = Object.new
+    def llm.chat(*, **) = raise(OpenRouter::AuthError, "chiave non valida")
+    assert_raises(OpenRouter::AuthError) { Builder.new(llm: llm).summarize(item("T", "https://a.com/1")) }
+  end
+
   def test_summarize_falls_back_when_llm_fails
     llm = Object.new
     def llm.chat(*, **) = raise("Ollama spento")

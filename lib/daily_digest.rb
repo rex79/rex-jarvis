@@ -9,6 +9,8 @@ module DailyDigest
   # dry_run: raccoglie e classifica, stampa la lista, non usa Ollama né scrive file.
   def self.run(dry_run: false, now: Time.now)
     config = YAML.load_file(Config::SOURCES_FILE)
+    # Configurazione sbagliata (chiave/modello mancanti) = errore subito, prima di raccogliere.
+    builder = dry_run ? nil : Builder.new
 
     items = Collector.collect(config["sources"])
     puts "Raccolti #{items.size} contenuti da #{items.map(&:source).uniq.size} fonti"
@@ -21,7 +23,6 @@ module DailyDigest
       return
     end
 
-    builder = Builder.new
     summaries = top.each_with_index.map do |item, i|
       puts "Riassumo #{i + 1}/#{top.size}: #{item.title[0, 60]}"
       builder.summarize(item)
@@ -35,5 +36,7 @@ module DailyDigest
     rescue StandardError => e
       warn "⚠️  indicizzazione fallita (il digest è comunque salvato): #{e.message}"
     end
+  rescue OpenRouter::AuthError, ArgumentError => e
+    abort "❌ #{e.message}"
   end
 end

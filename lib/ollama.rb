@@ -4,6 +4,8 @@ require "uri"
 require_relative "config"
 
 class Ollama
+  attr_reader :model
+
   def initialize(model: Config::MAIN_MODEL)
     @model = model
   end
