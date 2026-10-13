@@ -24,13 +24,22 @@ module DailyDigest
     end
 
     # Opzioni per fonte: ranked, title_prefix (es. "Ollama " per dare contesto a "v0.40.4"),
-    # boost (punti extra: fonti ufficiali), exclude_url (regex, es. pre-release "-rc").
+    # boost (punti extra: fonti ufficiali), exclude_url / exclude_title (regex: pre-release,
+    # annunci di eventi), max_items (tetto di voci di questa fonte in un digest).
     def self.feed(source)
-      items = FeedParser.parse(get(source["url"]), source["name"], ranked: source["ranked"] == true)
+      decorate(FeedParser.parse(get(source["url"]), source["name"], ranked: source["ranked"] == true), source)
+    end
+
+    # `hours`: finestra di freschezza della fonte (default globale 48h). Le fonti che pubblicano
+    # di rado (blog, newsletter) ne hanno una più lunga: la memoria dei link visti evita i doppioni.
+    def self.decorate(items, source)
       items = items.reject { |it| it.url.match?(Regexp.new(source["exclude_url"])) } if source["exclude_url"]
+      items = items.reject { |it| it.title.match?(Regexp.new(source["exclude_title"], Regexp::IGNORECASE)) } if source["exclude_title"]
       items.each do |it|
         it.title = "#{source['title_prefix']}#{it.title}" if source["title_prefix"]
         it.boost = source["boost"]
+        it.cap = source["max_items"]
+        it.window = source["hours"]
       end
     end
 
@@ -39,7 +48,7 @@ module DailyDigest
     def self.reddit(source)
       if RedditClient.configured? && !@reddit_auth_failed
         begin
-          return (@reddit_client ||= RedditClient.new).top(source["subreddit"])
+          return decorate((@reddit_client ||= RedditClient.new).top(source["subreddit"]), source)
         rescue RedditClient::AuthError => e
           @reddit_auth_failed = true # inutile riprovare per gli altri subreddit
           warn "⚠️  #{e.message}: uso i feed RSS"
