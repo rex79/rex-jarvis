@@ -38,15 +38,19 @@ Ogni mattina alle 7 con cron (`crontab -e`):
 Solo il digest può usare un provider online; chat e note restano su Ollama locale
 (i frammenti delle note non escono dalla macchina). Il digest invia a OpenRouter solo
 titoli e testi di contenuti pubblici.
+Metti le impostazioni in `~/.jarvis_env` (letto in automatico, ignorato da git):
 ```bash
-export OPENROUTER_API_KEY=...                       # non metterla mai nel repo
-export JARVIS_DIGEST_PROVIDER=openrouter
-export JARVIS_DIGEST_MODEL=provider/modello         # vedi openrouter.ai/models
+OPENROUTER_API_KEY=sk-or-...
+JARVIS_DIGEST_PROVIDER=openrouter
+JARVIS_DIGEST_MODEL=provider/modello   # vedi openrouter.ai/models
+```
+```bash
+chmod 600 ~/.jarvis_env   # solo tu puoi leggerlo (Jarvis avvisa se è troppo aperto)
 ruby jarvis.rb --digest
 ```
-Con cron le variabili vanno messe nel crontab (o in un file letto con `. ~/.jarvis_env`),
-perché cron non legge il profilo della shell. Se la chiave è errata o il credito è finito
-il digest si ferma subito con un messaggio chiaro.
+Una variabile già presente nell'ambiente ha la precedenza sul file. Un altro percorso si
+indica con `JARVIS_ENV_FILE`. Il cron funziona senza altro, perché Jarvis legge il file da solo.
+Se la chiave è errata o il credito è finito il digest si ferma subito con un messaggio chiaro.
 
 Variabili: `JARVIS_DIGEST_PROVIDER` (`ollama` o `openrouter`), `JARVIS_DIGEST_MODEL`
 (con Ollama default = modello principale, con OpenRouter obbligatorio), `JARVIS_DIGEST_ITEMS` (8),
