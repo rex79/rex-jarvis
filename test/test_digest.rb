@@ -184,3 +184,99 @@ class FeedOptionsTest < Minitest::Test
     assert_equal 1, DailyDigest::Ranker.select([item], { "min_score" => 2 }, n: 5, hours: 48).size
   end
 end
+
+class RedditTest < Minitest::Test
+  LISTING = JSON.generate(
+    "data" => { "children" => [
+      { "data" => { "title" => "Nuovo modello GGUF", "permalink" => "/r/LocalLLaMA/comments/abc/x/", "selftext" => "testo\n\ndel post",
+                    "created_utc" => Time.now.to_i - 3600, "stickied" => false, "over_18" => false } },
+      { "data" => { "title" => "Regole del subreddit", "permalink" => "/r/LocalLLaMA/comments/def/y/", "selftext" => "",
+                    "created_utc" => Time.now.to_i, "stickied" => true, "over_18" => false } }
+    ] }
+  )
+
+  # Client con rete simulata: registra le richieste e risponde dal copione.
+  def client(script)
+    c = DailyDigest::RedditClient.new(id: "ID", secret: "SEGRETO", user_agent: "test-agent")
+    calls = []
+    c.define_singleton_method(:send_request) do |uri, request|
+      calls << [uri.to_s, request["Authorization"], request["User-Agent"]]
+      script.shift
+    end
+    [c, calls]
+  end
+
+  def test_top_gets_token_then_posts_and_skips_stickied
+    c, calls = client([[200, '{"access_token":"TOK"}'], [200, LISTING]])
+    items = c.top("LocalLLaMA")
+
+    assert_equal ["Nuovo modello GGUF"], items.map(&:title)
+    assert_equal "https://www.reddit.com/r/LocalLLaMA/comments/abc/x/", items.first.url
+    assert_equal "testo del post", items.first.text
+    assert items.first.ranked
+    assert_match(%r{\Ahttps://www\.reddit\.com/api/v1/access_token}, calls[0][0])
+    assert_equal "Basic #{['ID:SEGRETO'].pack('m0')}", calls[0][1]
+    assert_match(%r{\Ahttps://oauth\.reddit\.com/r/LocalLLaMA/top\?t=day}, calls[1][0])
+    assert_equal "Bearer TOK", calls[1][1]
+    assert_equal "test-agent", calls[1][2]
+  end
+
+  def test_token_is_reused_across_subreddits
+    c, calls = client([[200, '{"access_token":"TOK"}'], [200, LISTING], [200, LISTING]])
+    c.top("LocalLLaMA")
+    c.top("LocalLLM")
+    assert_equal 1, calls.count { |u, _| u.include?("access_token") }
+  end
+
+  def test_bad_credentials_raise_without_leaking_secret
+    c, = client([[401, "unauthorized"]])
+    error = assert_raises(DailyDigest::RedditClient::AuthError) { c.top("LocalLLaMA") }
+    assert_includes error.message, "credenziali non valide"
+    refute_includes error.message, "SEGRETO"
+  end
+
+  def test_rejects_invalid_subreddit_name
+    c, = client([])
+    assert_raises(ArgumentError) { c.top("../../etc") }
+  end
+
+  def test_collector_falls_back_to_rss_without_credentials
+    ENV.delete("REDDIT_CLIENT_ID")
+    ENV.delete("REDDIT_CLIENT_SECRET")
+    requested = nil
+    rss = '<rss><channel><item><title>Da RSS</title><link>https://reddit.com/1</link></item></channel></rss>'
+    DailyDigest::Collector.stub(:get, ->(url, *) { requested = url; rss }) do
+      _out, err = capture_io do
+        items = DailyDigest::Collector.reddit("name" => "r/X", "subreddit" => "X")
+        assert_equal ["Da RSS"], items.map(&:title)
+        assert items.first.ranked
+      end
+      assert_includes requested, "/r/X/top/.rss"
+      assert_includes err, "REDDIT_CLIENT_ID"
+    end
+  end
+end
+
+class RedditAuthFailureTest < Minitest::Test
+  def test_auth_failure_is_remembered_and_skips_api_for_other_subreddits
+    ENV["REDDIT_CLIENT_ID"] = "fake"
+    ENV["REDDIT_CLIENT_SECRET"] = "fake"
+    attempts = 0
+    DailyDigest::RedditClient.stub(:new, -> { Object.new.tap { |o| o.define_singleton_method(:top) { |*| attempts += 1; raise DailyDigest::RedditClient::AuthError, "Reddit OAuth: credenziali non valide (HTTP 401)" } } }) do
+      DailyDigest::Collector.stub(:get, '<rss/>') do
+        capture_io do
+          DailyDigest::Collector.instance_variable_set(:@reddit_client, nil)
+          DailyDigest::Collector.instance_variable_set(:@reddit_auth_failed, nil)
+          DailyDigest::Collector.reddit("name" => "r/A", "subreddit" => "A")
+          DailyDigest::Collector.reddit("name" => "r/B", "subreddit" => "B")
+        end
+      end
+    end
+    assert_equal 1, attempts
+  ensure
+    ENV.delete("REDDIT_CLIENT_ID")
+    ENV.delete("REDDIT_CLIENT_SECRET")
+    DailyDigest::Collector.instance_variable_set(:@reddit_client, nil)
+    DailyDigest::Collector.instance_variable_set(:@reddit_auth_failed, nil)
+  end
+end

@@ -1,9 +1,10 @@
-# Fonti del daily digest. `ranked: true` = l'ordine del feed è già una classifica (es. Reddit top).
+# Fonti del daily digest. `type: reddit` usa l'API con OAuth se REDDIT_CLIENT_ID/SECRET sono impostate, altrimenti il feed RSS.
+# `ranked: true` = l'ordine del feed è già una classifica (es. Reddit top).
 sources:
-  - { name: "r/LocalLLaMA",     type: feed, ranked: true, url: "https://www.reddit.com/r/LocalLLaMA/top/.rss?t=day" }
-  - { name: "r/LocalLLM",       type: feed, ranked: true, url: "https://www.reddit.com/r/LocalLLM/top/.rss?t=day" }
-  - { name: "r/AI_Agents",      type: feed, ranked: true, url: "https://www.reddit.com/r/AI_Agents/top/.rss?t=day" }
-  - { name: "r/MachineLearning", type: feed, ranked: true, url: "https://www.reddit.com/r/MachineLearning/top/.rss?t=day" }
+  - { name: "r/LocalLLaMA", type: reddit, subreddit: LocalLLaMA }
+  - { name: "r/LocalLLM", type: reddit, subreddit: LocalLLM }
+  - { name: "r/AI_Agents", type: reddit, subreddit: AI_Agents }
+  - { name: "r/MachineLearning", type: reddit, subreddit: MachineLearning }
   - { name: "Hacker News",      type: feed, ranked: false, url: "https://hnrss.org/newest?q=ollama+OR+llama.cpp+OR+%22local+llm%22&points=40" }
   - { name: "Hugging Face",     type: feed, ranked: false, url: "https://huggingface.co/blog/feed.xml" }
   - { name: "Simon Willison",   type: feed, ranked: false, url: "https://simonwillison.net/atom/everything/" }
