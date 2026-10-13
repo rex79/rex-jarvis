@@ -1,5 +1,8 @@
+require_relative "env_file"
+EnvFile.load # prima delle costanti: JARVIS_* e OPENROUTER_API_KEY possono venire da ~/.jarvis_env
+
 module Config
-  MAIN_MODEL  = ENV.fetch("JARVIS_MODEL", "qwen3.5:4b")
+  MAIN_MODEL = ENV.fetch("JARVIS_MODEL", "qwen3.5:4b")
   EMBED_MODEL = ENV.fetch("JARVIS_EMBED_MODEL", "nomic-embed-text")
   OLLAMA_URL  = ENV.fetch("OLLAMA_URL", "http://localhost:11434")
   BRAIN_DIR   = File.expand_path(ENV.fetch("JARVIS_BRAIN", "~/brain"))

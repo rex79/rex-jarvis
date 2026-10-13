@@ -3,3 +3,7 @@
 .jarvis_index.json
 .DS_Store
 .env
+
+# Segreti locali: mai nel repo
+.jarvis_env
+*.env

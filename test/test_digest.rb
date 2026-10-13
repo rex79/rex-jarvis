@@ -2,6 +2,7 @@ require "minitest/autorun"
 require "tmpdir"
 ENV["JARVIS_BRAIN"] = Dir.mktmpdir("brain")
 require_relative "../lib/daily_digest"
+require_relative "../lib/env_file"
 
 class DigestTest < Minitest::Test
   include DailyDigest
@@ -119,5 +120,43 @@ class DigestTest < Minitest::Test
     def llm.chat(*, **) = raise("Ollama spento")
     it = item("T", "https://a.com/1", text: "testo originale")
     assert_equal "testo originale", Builder.new(llm: llm).summarize(it)
+  end
+end
+
+class EnvFileTest < Minitest::Test
+  def test_parse_handles_export_quotes_comments_and_junk
+    vars = EnvFile.parse(<<~ENV)
+      # commento
+      export A=uno
+      B="due con spazi"
+      C='tre'
+      D=quattro=cinque
+      riga senza uguale
+      1BAD=x
+    ENV
+    assert_equal({ "A" => "uno", "B" => "due con spazi", "C" => "tre", "D" => "quattro=cinque" }, vars)
+  end
+
+  def test_load_does_not_override_existing_env_and_warns_on_loose_permissions
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "env")
+      File.write(path, "TEST_JARVIS_X=dal_file\nTEST_JARVIS_Y=dal_file\n")
+      File.chmod(0o644, path)
+      ENV["TEST_JARVIS_X"] = "da_ambiente"
+
+      _out, err = capture_io { EnvFile.load(path) }
+
+      assert_equal "da_ambiente", ENV["TEST_JARVIS_X"]
+      assert_equal "dal_file", ENV["TEST_JARVIS_Y"]
+      assert_includes err, "chmod 600"
+      refute_includes err, "dal_file" # i valori non vengono mai stampati
+    end
+  ensure
+    ENV.delete("TEST_JARVIS_X")
+    ENV.delete("TEST_JARVIS_Y")
+  end
+
+  def test_load_ignores_missing_file
+    assert_nil EnvFile.load("/percorso/che/non/esiste")
   end
 end
