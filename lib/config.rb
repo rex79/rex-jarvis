@@ -8,7 +8,10 @@ module Config
   MAX_TOOL_OUTPUT = 4000
   KEEP_ALIVE  = "30m"
 
-  DIGEST_MODEL  = ENV.fetch("JARVIS_DIGEST_MODEL", MAIN_MODEL)
+  # Solo il digest può usare un provider online (contenuti pubblici); chat e note restano su Ollama locale.
+  DIGEST_PROVIDER = ENV.fetch("JARVIS_DIGEST_PROVIDER", "ollama") # ollama | openrouter
+  DIGEST_MODEL  = ENV["JARVIS_DIGEST_MODEL"] || (DIGEST_PROVIDER == "ollama" ? MAIN_MODEL : nil)
+  OPENROUTER_URL = ENV.fetch("OPENROUTER_URL", "https://openrouter.ai/api/v1/chat/completions")
   DIGEST_ITEMS  = Integer(ENV.fetch("JARVIS_DIGEST_ITEMS", "8"))
   DIGEST_HOURS  = Integer(ENV.fetch("JARVIS_DIGEST_HOURS", "48"))
   SOURCES_FILE  = File.expand_path("../config/sources.yml", __dir__)
