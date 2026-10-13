@@ -44,7 +44,7 @@ module DailyDigest
       item.text[0, 200]
     end
 
-    def render(items, summaries, date, model: @llm.model)
+    def render(items, summaries, date, model: @llm.model, labels: {})
       where = Config::DIGEST_PROVIDER == "ollama" ? "in locale" : "via #{Config::DIGEST_PROVIDER}"
       lines = ["# AI Daily — #{date.day} #{MONTHS[date.month - 1]} #{date.year}", ""]
       lines << "> #{items.size} segnalazioni selezionate e riassunte #{where} con #{model}. " \
@@ -54,6 +54,7 @@ module DailyDigest
       items.zip(summaries).each_with_index do |(item, summary), i|
         lines << "## #{i + 1}. #{item.title}"
         lines << "Fonte: #{item.source} · [link](#{item.url})"
+        lines << "Categoria: #{labels[item.category]}" if labels[item.category]
         lines << ""
         lines << summary
         lines << ""

@@ -4,6 +4,7 @@ require "tmpdir"
 ENV["JARVIS_BRAIN"] = Dir.mktmpdir("brain")
 require_relative "../lib/daily_digest"
 require_relative "../lib/env_file"
+require_relative "../lib/site"
 
 class DigestTest < Minitest::Test
   include DailyDigest
@@ -419,5 +420,72 @@ class KeywordCapTest < Minitest::Test
     ranking = { "keywords" => { "alfa" => 4, "beta" => 4, "gamma" => 4 } }
     item = DailyDigest::Item.new(title: "alfa beta gamma", url: "https://a.com/1", source: "S")
     assert_equal DailyDigest::Ranker::MAX_KEYWORD_SCORE, DailyDigest::Ranker.score(item, ranking)
+  end
+end
+
+class CategoriesTest < Minitest::Test
+  CATEGORIES = [
+    { "id" => "ufficiali", "label" => "Ufficiali", "slots" => 2 },
+    { "id" => "community", "label" => "Community", "slots" => 2 }
+  ].freeze
+
+  def item(title, category, score_boost, source: nil)
+    DailyDigest::Item.new(title: title, url: "https://a.com/#{title}", source: source || title, published: Time.now,
+                          text: "", boost: score_boost, category: category)
+  end
+
+  def test_reddit_cannot_take_every_slot
+    reddit = (1..6).map { |i| item("Reddit #{i}", "community", 20 - i, source: "r/#{i}") }
+    official = [item("Anthropic news", "ufficiali", 3), item("DeepMind post", "ufficiali", 3)]
+    result = DailyDigest::Ranker.select(reddit + official, {}, n: 4, hours: 48, categories: CATEGORIES)
+
+    assert_equal ["Anthropic news", "DeepMind post"], result.select { |i| i.category == "ufficiali" }.map(&:title).sort
+    assert_equal 2, result.count { |i| i.category == "community" }
+  end
+
+  def test_result_is_ordered_by_category_then_score
+    items = [item("C1", "community", 9), item("U1", "ufficiali", 3), item("C2", "community", 8), item("U2", "ufficiali", 5)]
+    result = DailyDigest::Ranker.select(items, {}, n: 4, hours: 48, categories: CATEGORIES)
+    assert_equal %w[U2 U1 C1 C2], result.map(&:title)
+  end
+
+  def test_empty_slots_go_to_best_remaining_items
+    items = [item("U1", "ufficiali", 3)] + (1..5).map { |i| item("C#{i}", "community", 10 - i, source: "r/#{i}") }
+    result = DailyDigest::Ranker.select(items, {}, n: 4, hours: 48, categories: CATEGORIES)
+    assert_equal 4, result.size
+    assert_equal 1, result.count { |i| i.category == "ufficiali" }
+  end
+
+  def test_total_never_exceeds_n
+    items = (1..5).map { |i| item("U#{i}", "ufficiali", 9, source: "u#{i}") } + (1..5).map { |i| item("C#{i}", "community", 9, source: "c#{i}") }
+    assert_equal 3, DailyDigest::Ranker.select(items, {}, n: 3, hours: 48, categories: CATEGORIES).size
+  end
+
+  def test_without_categories_behaviour_is_unchanged
+    items = (1..5).map { |i| item("T#{i}", "x", 10 - i, source: "s#{i}") }
+    assert_equal %w[T1 T2 T3], DailyDigest::Ranker.select(items, {}, n: 3, hours: 48).map(&:title)
+  end
+
+  def test_render_writes_category_line_and_site_groups_by_it
+    builder = DailyDigest::Builder.new(llm: nil)
+    items = [item("Post ufficiale", "ufficiali", 1, source: "Anthropic"), item("Thread", "community", 1, source: "r/LocalLLaMA")]
+    md = builder.render(items, ["Riassunto A.", "Riassunto B."], Time.new(2026, 10, 14), model: "m",
+                        labels: { "ufficiali" => "Ufficiali", "community" => "Community" })
+    assert_includes md, "Categoria: Ufficiali"
+
+    day = Site.parse(md, "2026-10-14")
+    assert_equal %w[Ufficiali Community], day.entries.map(&:category)
+    assert_equal %w[Ufficiali Community], Site.sections(day).map(&:first)
+    html = Site.page(day, [day])
+    assert_includes html, 'class="cats"'
+    assert_includes html, "Community <span>1</span>"
+  end
+
+  def test_shipped_config_categories_are_consistent
+    config = YAML.load_file(Config::SOURCES_FILE)
+    ids = config["categories"].map { |c| c["id"] }
+    assert_equal ids.uniq, ids
+    assert config["categories"].all? { |c| c["slots"].to_i.positive? && !c["label"].to_s.empty? }
+    config["sources"].each { |s| assert_includes ids, s["category"], "#{s['name']}: categoria mancante o sconosciuta" }
   end
 end

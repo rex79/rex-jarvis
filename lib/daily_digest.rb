@@ -19,11 +19,14 @@ module DailyDigest
     puts "Raccolti #{items.size} contenuti da #{items.map(&:source).uniq.size} fonti"
 
     seen = Seen.new(now: now)
-    top = Ranker.select(items, config["ranking"], n: Config::DIGEST_ITEMS, hours: Config::DIGEST_HOURS, now: now, seen: seen)
+    categories = config["categories"] || []
+    total = Config::DIGEST_ITEMS || categories.sum { |c| c["slots"].to_i }.nonzero? || 10
+    top = Ranker.select(items, config["ranking"], n: total, hours: Config::DIGEST_HOURS, now: now, seen: seen, categories: categories)
+    labels = categories.to_h { |c| [c["id"], c["label"]] }
     return puts("Nessun contenuto rilevante.") if top.empty?
 
     if dry_run
-      top.each { |it| puts format("%5.1f  %-16s %s\n       %s", it.score, it.source, it.title, it.url) }
+      top.each { |it| puts format("%5.1f  %-10s %-16s %s\n       %s", it.score, it.category.to_s[0, 10], it.source, it.title, it.url) }
       return
     end
 
@@ -32,7 +35,7 @@ module DailyDigest
       builder.summarize(item)
     end
 
-    path = builder.write(builder.render(top, summaries, now), now)
+    path = builder.write(builder.render(top, summaries, now, labels: labels), now)
     puts "Digest scritto in #{path}"
 
     seen.add(top) # solo dopo aver scritto il file: un'esecuzione fallita non brucia le voci
