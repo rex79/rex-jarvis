@@ -25,6 +25,7 @@ module DailyDigest
       ranking.fetch("keywords", {}).each { |word, weight| total += weight if text.include?(word.to_s.downcase) }
       total += 3.0 * (1 - [item.position.to_i, 25].min / 25.0) if item.ranked
       total += Math.log10(item.stars + 1) if item.stars
+      total += item.boost.to_f
       total -= 5 if ranking.fetch("avoid", []).any? { |word| text.include?(word.downcase) }
       total
     end

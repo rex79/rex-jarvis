@@ -1,4 +1,5 @@
 require "minitest/autorun"
+require "minitest/mock"
 require "tmpdir"
 ENV["JARVIS_BRAIN"] = Dir.mktmpdir("brain")
 require_relative "../lib/daily_digest"
@@ -158,5 +159,28 @@ class EnvFileTest < Minitest::Test
 
   def test_load_ignores_missing_file
     assert_nil EnvFile.load("/percorso/che/non/esiste")
+  end
+end
+
+class FeedOptionsTest < Minitest::Test
+  RELEASES = <<~XML
+    <feed>
+      <entry><title>v0.40.4</title><link rel="alternate" href="https://github.com/o/o/releases/tag/v0.40.4-rc1"/><updated>2026-10-13T05:00:00Z</updated><content>rc</content></entry>
+      <entry><title>v0.40.3</title><link rel="alternate" href="https://github.com/o/o/releases/tag/v0.40.3"/><updated>2026-10-12T05:00:00Z</updated><content>stabile</content></entry>
+    </feed>
+  XML
+
+  def test_feed_applies_prefix_boost_and_excludes_prereleases
+    source = { "name" => "Rel", "url" => "x", "title_prefix" => "Ollama ", "boost" => 3, "exclude_url" => "-(rc|alpha|beta)" }
+    DailyDigest::Collector.stub(:get, RELEASES) do
+      items = DailyDigest::Collector.feed(source)
+      assert_equal ["Ollama v0.40.3"], items.map(&:title)
+      assert_equal 3, items.first.boost
+    end
+  end
+
+  def test_boost_lets_official_source_pass_min_score
+    item = DailyDigest::Item.new(title: "Ollama v0.40.3", url: "https://a.com/r", source: "Rel", published: Time.now, text: "", boost: 3)
+    assert_equal 1, DailyDigest::Ranker.select([item], { "min_score" => 2 }, n: 5, hours: 48).size
   end
 end
