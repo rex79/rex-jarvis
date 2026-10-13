@@ -139,3 +139,44 @@ class SiteSectionsTest < Minitest::Test
     refute_includes html, "<img src=x"
   end
 end
+
+class SiteLowRelevanceTest < Minitest::Test
+  INLINE = <<~MD
+    # AI Daily — 14 ottobre 2026
+
+    ## 1. Ollama v0.40.3
+    Fonte: Ollama releases · [link](https://github.com/ollama/ollama/releases/tag/v0.40.3)
+    Categoria: Ufficiali
+
+    Rimuove i warning e pausa gli aggiornamenti in background. Perché ti interessa: ottimizza i modelli locali.
+
+    ## 2. Annuncio generico
+    Fonte: Anthropic · [link](https://anthropic.com/news/x)
+    Categoria: Ufficiali
+
+    Riassunto. Perché ti interessa: poco, generico.
+  MD
+
+  def test_why_is_recognised_mid_line
+    first, second = Site.parse(INLINE, "2026-10-14").entries
+    assert_equal "Rimuove i warning e pausa gli aggiornamenti in background.", first.summary
+    assert_equal "ottimizza i modelli locali.", first.why
+    refute first.low?
+    assert second.low?
+  end
+
+  def test_everything_is_visible_by_default_and_toggle_hides_low_ones
+    html = Site.page(Site.parse(INLINE, "2026-10-14"), [])
+    assert_includes html, "nascondi i poco rilevanti"
+    refute_match(/id="low"[^>]*checked/, html)
+    assert_includes html, "!low.checked||!c.classList.contains('low')"
+    assert_includes html, "textContent=n" # i contatori seguono le card visibili
+  end
+
+  def test_summary_without_why_keeps_everything_as_summary
+    md = INLINE.sub("Perché ti interessa: poco, generico.", "")
+    entry = Site.parse(md, "2026-10-14").entries.last
+    assert_nil entry.why
+    assert_equal "Riassunto.", entry.summary
+  end
+end

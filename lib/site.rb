@@ -19,16 +19,17 @@ module Site
     entries = markdown.split(/^## \d+\. /).drop(1).map do |block|
       title, *rest = block.lines
       text = rest.join
-      body = rest.map(&:strip).reject { |l| l.empty? || l.start_with?("Fonte:", "Categoria:") }
-      why_line = body.find { |l| l.start_with?("Perché ti interessa:") }
+      body = rest.map(&:strip).reject { |l| l.empty? || l.start_with?("Fonte:", "Categoria:") }.join(" ")
+      # Il modello a volte scrive il "Perché ti interessa" sulla stessa riga del riassunto.
+      summary, why = body.split("Perché ti interessa:", 2).map(&:strip)
 
       Entry.new(
         title: title.to_s.strip,
         source: text[/^Fonte: (.+?) ·/, 1].to_s,
         category: text[/^Categoria: (.+)$/, 1]&.strip,
         url: text[%r{\[link\]\((https?://[^)\s]+)\)}, 1],
-        summary: (body - [why_line]).join(" "),
-        why: why_line&.sub("Perché ti interessa:", "")&.strip
+        summary: summary.to_s,
+        why: why.to_s.empty? ? nil : why
       )
     end
 
@@ -77,7 +78,7 @@ module Site
         #{chips}
         <div class="tools">
           <input id="q" type="search" placeholder="Cerca nel digest…" aria-label="Cerca">
-          <label><input id="low" type="checkbox"> mostra anche i poco rilevanti</label>
+          <label><input id="low" type="checkbox"> nascondi i poco rilevanti</label>
         </div>
       </header>
       <main id="list">#{body}#{empty}</main>
@@ -163,9 +164,11 @@ module Site
     const q=document.getElementById('q'),low=document.getElementById('low'),none=document.getElementById('none');
     const cards=[...document.querySelectorAll('.card')],sections=[...document.querySelectorAll('section.cat')];
     function apply(){const t=q.value.trim().toLowerCase();let shown=0;
-      cards.forEach(c=>{const ok=(low.checked||!c.classList.contains('low'))&&c.textContent.toLowerCase().includes(t);
+      cards.forEach(c=>{const ok=(!low.checked||!c.classList.contains('low'))&&c.textContent.toLowerCase().includes(t);
         c.hidden=!ok;if(ok)shown++;});
-      sections.forEach(s=>{s.hidden=!s.querySelector('.card:not([hidden])');});
+      sections.forEach(s=>{const n=s.querySelectorAll('.card:not([hidden])').length;s.hidden=!n;
+        const t=s.querySelector('.cat-title span'),c=document.querySelector('.cats a[href="#'+s.id+'"] span');
+        if(t)t.textContent=n;if(c)c.textContent=n;});
       none.hidden=shown>0||!cards.length;}
     q.addEventListener('input',apply);low.addEventListener('change',apply);apply();
   JS

@@ -489,3 +489,13 @@ class CategoriesTest < Minitest::Test
     config["sources"].each { |s| assert_includes ids, s["category"], "#{s['name']}: categoria mancante o sconosciuta" }
   end
 end
+
+class SummarizerPromptTest < Minitest::Test
+  def test_prompt_covers_ai_in_general_and_does_not_hardcode_the_hardware
+    prompt = DailyDigest::Builder::SYSTEM
+    refute_includes prompt, "Mac mini"
+    assert_includes prompt, "restare aggiornato"
+    assert_includes prompt, "non perché non riguardi i modelli locali"
+    assert_includes prompt, "NON attendibile" # la difesa dalle istruzioni nei testi resta
+  end
+end
