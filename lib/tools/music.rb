@@ -52,10 +52,35 @@ end run'
     end
   end
 
+  NOW_PLAYING = <<~SCRIPT.freeze
+    on run argv
+      set appName to item 1 of argv
+      if application appName is not running then return "closed"
+      using terms from application "Music"
+        tell application appName
+          if player state is stopped then return "stopped"
+          return (player state as text) & linefeed & (name of current track) & linefeed & (artist of current track)
+        end tell
+      end using terms from
+    end run
+  SCRIPT
+
+  # Cosa sta suonando, senza mai aprire l'app: { app:, state:, track:, artist: }.
+  def self.now_playing(app: nil, runner: method(:osascript))
+    app = normalize_app(app) || Config::MUSIC_APP
+    raise Error, "app musicale non supportata: #{app}" unless APPS.include?(app)
+
+    state, track, artist = runner.call(NOW_PLAYING, [app]).to_s.split("\n").map(&:strip)
+    { app: app, state: { "closed" => "chiusa", "playing" => "in riproduzione", "paused" => "in pausa",
+                         "stopped" => "ferma" }.fetch(state.to_s, state.to_s), track: track, artist: artist }
+  end
+
   def self.osascript(script, args)
     raise Error, "il controllo della musica funziona solo su macOS" unless RUBY_PLATFORM.include?("darwin")
 
-    _out, err, status = Open3.capture3("osascript", "-e", script, *args)
+    out, err, status = Open3.capture3("osascript", "-e", script, *args)
     raise Error, "AppleScript: #{err.strip}" unless status.success?
+
+    out.strip
   end
 end

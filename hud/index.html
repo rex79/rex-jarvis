@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="jarvis-token" content="{{TOKEN}}">
+<title>J.A.R.V.I.S.</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body data-state="idle">
+<div class="grid-bg" aria-hidden="true"></div>
+
+<header class="top">
+  <div class="brand">J.A.R.V.I.S.<span id="host" class="dim"></span></div>
+  <div id="privacy-badge" class="badge">VERIFICA PRIVACY…</div>
+  <div class="clock"><span id="time">--:--</span><span id="date" class="dim"></span></div>
+</header>
+
+<main class="layout">
+  <aside class="col">
+    <section class="panel">
+      <h2>Sistema</h2>
+      <div class="metric"><span>Carico CPU</span><b id="load">–</b></div>
+      <div class="bar"><i id="load-bar"></i></div>
+      <div class="metric"><span>Memoria</span><b id="ram">–</b></div>
+      <div class="metric"><span>Batteria</span><b id="battery">–</b></div>
+      <div class="metric"><span>Disco libero</span><b id="disk">–</b></div>
+    </section>
+    <section class="panel">
+      <h2>Modelli locali</h2>
+      <div class="metric"><span>Ollama</span><b id="ollama">–</b></div>
+      <div class="metric"><span>Lavoro</span><b id="work-model">–</b></div>
+      <div class="metric"><span>Personale</span><b id="personal-model">–</b></div>
+      <ul id="loaded" class="list compact"></ul>
+    </section>
+  </aside>
+
+  <section class="core">
+    <div class="reactor" aria-hidden="true">
+      <svg viewBox="0 0 400 400">
+        <defs>
+          <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#e8fbff"/>
+            <stop offset="35%" stop-color="#7fe3ff"/>
+            <stop offset="100%" stop-color="#0a3b52" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <g class="ring r1"><circle cx="200" cy="200" r="188" class="ticks"/></g>
+        <g class="ring r2"><circle cx="200" cy="200" r="160" class="arcs"/></g>
+        <g class="ring r3"><circle cx="200" cy="200" r="132" class="dash"/></g>
+        <circle cx="200" cy="200" r="112" class="line"/>
+        <g class="ring r4"><circle cx="200" cy="200" r="96" class="arcs thick"/></g>
+        <circle cx="200" cy="200" r="70" class="line faint"/>
+        <circle cx="200" cy="200" r="58" class="core-glow" fill="url(#glow)"/>
+      </svg>
+      <div class="reactor-label"><span id="state-label">IN ASCOLTO</span></div>
+    </div>
+
+    <form id="console" class="console" autocomplete="off">
+      <span class="prompt">›</span>
+      <input id="command" name="command" maxlength="2000" placeholder="Dimmi cosa fare…  (lavoro: / personale:)" aria-label="Comando per Jarvis">
+      <button type="submit">Invia</button>
+    </form>
+    <ol id="log" class="log" aria-live="polite"></ol>
+  </section>
+
+  <aside class="col">
+    <section class="panel">
+      <h2>Audio</h2>
+      <div id="track" class="track">–</div>
+      <div id="artist" class="dim small"></div>
+      <div id="music-state" class="dim small"></div>
+      <div class="controls">
+        <button data-music="previous" aria-label="Brano precedente">⏮</button>
+        <button data-music="pause" aria-label="Pausa">⏸</button>
+        <button data-music="play" aria-label="Riproduci">▶</button>
+        <button data-music="next" aria-label="Brano successivo">⏭</button>
+      </div>
+    </section>
+    <section class="panel grow">
+      <h2>Digest <span id="digest-date" class="dim"></span></h2>
+      <ul id="digest" class="list"></ul>
+    </section>
+  </aside>
+</main>
+<script src="/app.js"></script>
+</body>
+</html>
