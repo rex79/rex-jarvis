@@ -211,3 +211,15 @@ Sicurezza: il server ascolta solo su `127.0.0.1` (non è raggiungibile dalla ret
 Host `localhost`/`127.0.0.1` sulla sua porta (difesa dal DNS rebinding), le API richiedono un token
 casuale generato a ogni avvio e le POST con un Origin diverso vengono rifiutate; Content Security
 Policy senza script inline e testo dal server inserito sempre come testo, mai come HTML.
+
+### Dashboard sempre attiva (macOS)
+```bash
+bin/hud-service install     # parte al login e si riavvia se si ferma (porta: JARVIS_HUD_PORT, default 7777)
+bin/hud-service status      # stato del servizio e della dashboard
+bin/hud-service logs        # ultime righe di ~/Library/Logs/jarvis-hud.log
+bin/hud-service open        # apre la dashboard
+bin/hud-service uninstall   # ferma e rimuove
+```
+Usa un LaunchAgent (`~/Library/LaunchAgents/com.jarvis.hud.plist`). Dopo un `git pull` che cambia il
+codice Ruby, rilancia `bin/hud-service install` per riavviarlo con la versione nuova (HTML, CSS e JS
+della dashboard invece si aggiornano subito). Ollama deve essere attivo: l'app di Ollama parte al login.
