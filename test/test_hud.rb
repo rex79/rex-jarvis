@@ -131,9 +131,81 @@ class HudStatusTest < Minitest::Test
     Dir.mktmpdir do |dir|
       File.write(File.join(dir, "2026-10-20.md"), "# Vecchio\n\n## 1. Vecchia\nFonte: X · [link](https://a.com/1)\n\nTesto.\n")
       File.write(File.join(dir, "2026-10-21.md"), "# Nuovo\n\n## 1. Nuova notizia\nFonte: Anthropic · [link](https://a.com/2)\nCategoria: Ufficiali\n\nTesto.\n")
-      digest = HudStatus.new(digest_dir: dir).digest
+      digest = HudStatus.new(digest_dir: dir, feed: DigestFeed.new(url: "")).digest
       assert_equal "2026-10-21", digest[:date]
-      assert_equal [{ title: "Nuova notizia", source: "Anthropic", category: "Ufficiali", url: "https://a.com/2" }], digest[:items]
+      assert_equal "locale", digest[:origin]
+      assert_equal [{ title: "Nuova notizia", source: "Anthropic", category: "Ufficiali", url: "https://a.com/2",
+                      summary: "Testo.", why: nil, low: false }], digest[:items]
     end
+  end
+end
+
+class DigestFeedTest < Minitest::Test
+  JSON_OK = JSON.generate(date: "2026-10-21", entries: [
+    { title: "Notizia", source: "Anthropic", category: "Ufficiali", url: "https://a.com/1", summary: "Riassunto.", why: "Utile.", low: false },
+    { title: "Link ostile", url: "javascript:alert(1)", summary: 5 },
+    "non un oggetto",
+    { url: "https://a.com/senza-titolo" }
+  ])
+
+  def feed(fetcher, url: "https://example.com/jarvis/", user: "", password: "", clock: -> { Time.at(0) })
+    DigestFeed.new(url: url, user: user, password: password, fetcher: fetcher, clock: clock)
+  end
+
+  def test_fetches_digest_json_next_to_the_site_and_validates_entries
+    requested = nil
+    data = feed(->(uri, *) { requested = uri.to_s; JSON_OK }).latest
+    assert_equal "https://example.com/jarvis/digest.json", requested
+    assert_equal ["Notizia", "Link ostile"], data[:items].map { |i| i[:title] }
+    assert_nil data[:items][1][:url]
+    assert_nil data[:items][1][:summary]
+    assert_equal "Riassunto.", data[:items][0][:summary]
+  end
+
+  def test_caches_for_fifteen_minutes
+    now = Time.at(0)
+    calls = 0
+    f = feed(->(*) { calls += 1; JSON_OK }, clock: -> { now })
+    f.latest
+    now += 10 * 60
+    f.latest
+    assert_equal 1, calls
+    now += 6 * 60
+    f.latest
+    assert_equal 2, calls
+  end
+
+  def test_keeps_the_last_good_copy_when_the_site_is_down
+    now = Time.at(0)
+    up = true
+    f = feed(->(*) { up ? JSON_OK : raise("timeout") }, clock: -> { now })
+    f.latest
+    up = false
+    now += 16 * 60
+    data = f.latest
+    assert data[:stale]
+    assert_equal "timeout", data[:error]
+    assert_equal "Notizia", data[:items].first[:title]
+  end
+
+  def test_without_a_previous_copy_the_error_is_raised
+    assert_raises(DigestFeed::Error) { feed(->(*) { raise "HTTP 500" }).latest }
+  end
+
+  def test_credentials_require_https
+    assert_raises(DigestFeed::Error) { feed(->(*) { JSON_OK }, url: "http://example.com/jarvis/", user: "u", password: "p").latest }
+    assert feed(->(*) { JSON_OK }, url: "https://example.com/jarvis/digest.json", user: "u", password: "p").latest
+  end
+
+  def test_rejects_non_http_urls_and_invalid_json
+    assert_raises(DigestFeed::Error) { feed(->(*) { JSON_OK }, url: "file:///etc/passwd").latest }
+    assert_raises(DigestFeed::Error) { feed(->(*) { "[1,2]" }).latest }
+  end
+
+  def test_status_uses_the_remote_digest_when_configured
+    status = HudStatus.new(feed: feed(->(*) { JSON_OK }))
+    assert_equal "remoto", status.digest[:origin]
+    broken = HudStatus.new(feed: feed(->(*) { raise "giù" })).snapshot[:digest]
+    assert_equal({ error: "giù" }, broken)
   end
 end

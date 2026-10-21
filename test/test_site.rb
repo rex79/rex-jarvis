@@ -65,7 +65,7 @@ class SiteTest < Minitest::Test
       File.write(File.join(digest, "note.md"), "# non è un digest")
 
       assert_match(/2 giorni/, Site.build(digest, out))
-      assert_equal %w[2026-10-12.html 2026-10-13.html index.html robots.txt], Dir.children(out).sort
+      assert_equal %w[2026-10-12.html 2026-10-13.html digest.json index.html robots.txt], Dir.children(out).sort
       index = File.read(File.join(out, "index.html"), encoding: "UTF-8")
       assert_includes index, "13 ottobre 2026"
       assert_includes index, 'href="2026-10-12.html"'
@@ -178,5 +178,23 @@ class SiteLowRelevanceTest < Minitest::Test
     entry = Site.parse(md, "2026-10-14").entries.last
     assert_nil entry.why
     assert_equal "Riassunto.", entry.summary
+  end
+end
+
+class SiteFeedTest < Minitest::Test
+  def test_build_publishes_the_latest_digest_as_json
+    Dir.mktmpdir do |dir|
+      digest = File.join(dir, "digest")
+      FileUtils.mkdir_p(digest)
+      File.write(File.join(digest, "2026-10-13.md"), SiteTest::DIGEST)
+      Site.build(digest, File.join(dir, "site"))
+      data = JSON.parse(File.read(File.join(dir, "site", "digest.json"), encoding: "UTF-8"))
+      assert_equal "2026-10-13", data["date"]
+      first = data["entries"].first
+      assert_equal "Benchmarked Strata against llama.cpp", first["title"]
+      assert_equal "Strata 0.1.39 supera llama.cpp in velocità.", first["summary"]
+      assert_equal true, first["low"]
+      assert_nil data["entries"][2]["url"], "il link javascript: non viene pubblicato"
+    end
   end
 end

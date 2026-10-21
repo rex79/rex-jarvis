@@ -7,11 +7,14 @@ require_relative "../config"
 require_relative "../privacy"
 require_relative "../site"
 require_relative "../tools/music"
+require_relative "digest_feed"
 
 # Fotografia dello stato per la dashboard. Ogni pannello è indipendente: se una parte fallisce
 # (Ollama spento, app musicale senza permesso) restituisce un errore leggibile e le altre continuano.
 class HudStatus
-  def initialize(music: Music, ollama_url: Config::OLLAMA_URL, digest_dir: File.join(Config::BRAIN_DIR, "digest"))
+  def initialize(music: Music, ollama_url: Config::OLLAMA_URL, digest_dir: File.join(Config::BRAIN_DIR, "digest"),
+                 feed: DigestFeed.new)
+    @feed = feed
     @music = music
     @ollama_url = ollama_url
     @digest_dir = digest_dir
@@ -63,12 +66,18 @@ class HudStatus
     { online: false, models: [] }
   end
 
+  # Il digest pubblicato dal Mac mini (JARVIS_DIGEST_URL) se configurato, altrimenti quello locale.
   def digest
+    return @feed.latest.merge(origin: "remoto") if @feed.configured?
+
     file = Dir.glob(File.join(@digest_dir, "*.md")).max
-    return { date: nil, items: [] } unless file
+    return { date: nil, items: [], origin: "locale" } unless file
 
     day = Site.parse(File.read(file, encoding: "UTF-8").scrub, File.basename(file, ".md"))
-    { date: day.date, items: day.entries.first(6).map { |e| { title: e.title, source: e.source, category: e.category, url: e.url } } }
+    items = day.entries.map do |e|
+      { title: e.title, source: e.source, category: e.category, url: e.url, summary: e.summary, why: e.why, low: e.low? }
+    end
+    { date: day.date, items: items, origin: "locale" }
   end
 
   private
