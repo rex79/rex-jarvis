@@ -195,3 +195,19 @@ Musica: l'app preferita è `JARVIS_MUSIC_APP` (Music o Spotify); nominandola nel
 Spotify", "pausa su Apple Music") si usa quella. Solo "play" avvia un'app chiusa: pausa, avanti e
 indietro non aprono nulla. Con Spotify: play, pausa, avanti e indietro; cercare una playlist o un
 brano per nome richiede la Web API di Spotify (OAuth), non ancora supportata.
+
+## Dashboard (HUD)
+```bash
+ruby jarvis.rb --hud            # poi apri http://localhost:7777
+ruby jarvis.rb --hud --port 8080
+```
+Interfaccia in stile Jarvis: reattore animato (accelera mentre elabora), orologio, console comandi
+(stesso smistamento lavoro/personale della CLI, tasto `/` per scrivere), sistema (carico, RAM,
+batteria, disco), modelli Ollama in memoria, indicatore di privacy del contesto di lavoro, Spotify o
+Musica (cosa suona e comandi) e i titoli dell'ultimo digest. Si adatta al telefono e rispetta
+"riduci movimento".
+
+Sicurezza: il server ascolta solo su `127.0.0.1` (non è raggiungibile dalla rete), accetta solo
+Host `localhost`/`127.0.0.1` sulla sua porta (difesa dal DNS rebinding), le API richiedono un token
+casuale generato a ogni avvio e le POST con un Origin diverso vengono rifiutate; Content Security
+Policy senza script inline e testo dal server inserito sempre come testo, mai come HTML.

@@ -43,6 +43,17 @@ if ARGV.include?("--digest")
   exit
 end
 
+if ARGV.include?("--hud")
+  require_relative "lib/hud/server"
+  port = Integer(arg_value("--port") || 7777)
+  begin
+    HudServer.new(port: port, dispatcher: Dispatcher.new(forced: arg_value("--context"))).start
+  rescue Interrupt
+    puts "\nHUD fermato."
+  end
+  exit
+end
+
 # Ogni comando va al contesto giusto (lavoro o personale); --context lo forza.
 dispatcher = nil
 handle = lambda do |text|
