@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Installa Jarvis su questa macchina (macOS o Linux).
+#   bin/setup            controlla i requisiti, scarica i modelli, crea cartelle e ~/.jarvis_env
+#   bin/setup --no-pull  come sopra, senza scaricare modelli
+# Non sovrascrive mai un ~/.jarvis_env esistente: in quel caso suggerisce le righe mancanti.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+PULL=1
+[[ "${1:-}" == "--no-pull" ]] && PULL=0
+
+ok()   { printf '  ✅ %s\n' "$1"; }
+warn() { printf '  ⚠️  %s\n' "$1"; }
+die()  { printf '  ❌ %s\n' "$1"; exit 1; }
+
+echo "1. Requisiti"
+command -v ruby >/dev/null || die "Ruby non trovato (macOS: brew install ruby · Ubuntu: sudo apt install ruby)"
+ruby -e 'exit(Gem::Version.new(RUBY_VERSION) >= Gem::Version.new("3.1") ? 0 : 1)' || die "serve Ruby 3.1 o superiore (hai $(ruby -e 'print RUBY_VERSION'))"
+ok "Ruby $(ruby -e 'print RUBY_VERSION')"
+command -v ollama >/dev/null || die "Ollama non trovato (https://ollama.com/download)"
+ok "Ollama $(ollama --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+command -v curl >/dev/null && ok "curl" || warn "curl assente: serve solo per pubblicare il sito"
+
+echo "2. Modello consigliato per questa macchina"
+if [[ "$(uname)" == "Darwin" ]]; then
+  RAM_GB=$(( $(sysctl -n hw.memsize) / 1073741824 ))
+else
+  RAM_GB=$(( $(awk '/MemTotal/ {print $2}' /proc/meminfo) / 1048576 ))
+fi
+if (( RAM_GB >= 16 )); then MODEL="qwen3:8b"; else MODEL="qwen3.5:4b"; fi
+ok "RAM ${RAM_GB} GB → ${MODEL} (chat e contesti), nomic-embed-text (ricerca nelle note)"
+
+if (( PULL )); then
+  echo "3. Download modelli (solo quelli mancanti)"
+  for m in "$MODEL" nomic-embed-text; do
+    if ollama list | awk 'NR>1 {print $1}' | grep -qx "$m"; then ok "$m già presente"; else ollama pull "$m"; fi
+  done
+else
+  echo "3. Download modelli saltato (--no-pull)"
+fi
+
+echo "4. Cartelle"
+BRAIN="${JARVIS_BRAIN:-$HOME/brain}"
+WORK="${JARVIS_WORK_DIR:-$HOME/jarvis-work}"
+mkdir -p "$BRAIN" "$WORK"
+ok "note personali: $BRAIN"
+ok "note di lavoro: $WORK (solo modelli locali)"
+
+echo "5. Configurazione"
+ENV_FILE="${JARVIS_ENV_FILE:-$HOME/.jarvis_env}"
+if [[ -e "$ENV_FILE" ]]; then
+  ok "$ENV_FILE esiste già: non lo modifico"
+  for key in JARVIS_MODEL JARVIS_WORK_MODEL JARVIS_WORK_DIR; do
+    grep -q "^${key}=" "$ENV_FILE" || warn "manca ${key}: aggiungi la riga suggerita qui sotto"
+  done
+  echo "     Righe suggerite: JARVIS_MODEL=${MODEL} · JARVIS_WORK_MODEL=${MODEL} · JARVIS_WORK_DIR=${WORK}"
+else
+  umask 077
+  cat > "$ENV_FILE" <<CONF
+# Configurazione di Jarvis per questa macchina (letta in automatico, mai nel repo).
+JARVIS_MODEL=${MODEL}
+JARVIS_WORK_MODEL=${MODEL}
+JARVIS_BRAIN=${BRAIN}
+JARVIS_WORK_DIR=${WORK}
+# Musica (solo macOS): Music oppure Spotify
+JARVIS_MUSIC_APP=Music
+CONF
+  chmod 600 "$ENV_FILE"
+  ok "creato $ENV_FILE (permessi 600)"
+fi
+
+echo "6. Test"
+for t in test/test_*.rb; do
+  MT_NO_PLUGINS=1 ruby "$t" >/dev/null 2>&1 && ok "$(basename "$t")" || die "$(basename "$t") fallito: lancia MT_NO_PLUGINS=1 ruby $t per i dettagli"
+done
+
+echo
+echo "Fatto. Prova:  ruby jarvis.rb --ask \"che ore sono?\"   ·   chat: ruby jarvis.rb"
