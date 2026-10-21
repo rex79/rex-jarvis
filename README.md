@@ -152,3 +152,36 @@ non riempie passano alle migliori voci rimaste. Il totale è la somma dei posti 
 `JARVIS_DIGEST_ITEMS` lo limita). Nel digest ogni voce ha la riga `Categoria:` e nel sito le voci sono
 raggruppate in sezioni, con una barra per saltare dall'una all'altra e le card su più colonne sugli
 schermi larghi. I digest vecchi, senza categorie, restano una lista unica.
+
+## Installazione su una nuova macchina
+```bash
+git clone git@github.com:rex79/rex-jarvis.git && cd rex-jarvis
+bin/setup            # requisiti, modelli Ollama adatti alla RAM, cartelle, ~/.jarvis_env, test
+```
+`bin/setup --no-pull` salta il download dei modelli. Un `~/.jarvis_env` esistente non viene mai
+modificato: lo script indica le righe mancanti.
+
+## Contesti: lavoro e personale
+Jarvis ha due contesti separati, ognuno con le sue note, il suo modello e i suoi strumenti.
+
+| | Lavoro | Personale |
+|---|---|---|
+| Note | `JARVIS_WORK_DIR` (default `~/jarvis-work`) | `JARVIS_BRAIN` (default `~/brain`, come il digest) |
+| Modello | `JARVIS_WORK_MODEL`, **solo locale** | `JARVIS_MODEL` |
+| Strumenti | note | note, musica (`JARVIS_MUSIC_APP`: Music o Spotify) |
+
+- **Privacy del contesto di lavoro:** se `OLLAMA_URL` non punta a questo computer (`localhost`,
+  `127.0.0.1`, `::1`), Jarvis si rifiuta di avviare il contesto di lavoro e di indicizzarne le note.
+  Ogni contesto legge e scrive solo nella sua cartella e può usare solo i suoi strumenti.
+- **Smistamento:** il prefisso `lavoro:` o `personale:` sceglie il contesto; altrimenti decidono le
+  parole chiave (basta un segnale di lavoro per restare nel contesto di lavoro) e, se non bastano, un
+  modello locale. Nel dubbio vince il lavoro, dove nulla esce dal computer.
+
+```bash
+ruby jarvis.rb                                   # chat, ogni messaggio va al contesto giusto
+ruby jarvis.rb --ask "personale: metti la playlist Focus"
+ruby jarvis.rb --ask "che riunioni ho segnato?" --context work
+ruby jarvis.rb --index                           # indicizza le note di entrambi i contesti
+```
+La prima volta che Jarvis controlla la musica, macOS chiede il permesso di automazione per il
+Terminale: va concesso.

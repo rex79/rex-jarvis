@@ -6,7 +6,13 @@ module Config
   EMBED_MODEL = ENV.fetch("JARVIS_EMBED_MODEL", "nomic-embed-text")
   OLLAMA_URL  = ENV.fetch("OLLAMA_URL", "http://localhost:11434")
   BRAIN_DIR   = File.expand_path(ENV.fetch("JARVIS_BRAIN", "~/brain"))
-  INDEX_FILE  = File.join(BRAIN_DIR, ".jarvis_index.json")
+
+  # Contesto di lavoro: note separate e SOLO modelli locali (vedi lib/privacy.rb).
+  WORK_DIR    = File.expand_path(ENV.fetch("JARVIS_WORK_DIR", "~/jarvis-work"))
+  WORK_MODEL  = ENV.fetch("JARVIS_WORK_MODEL", MAIN_MODEL)
+  # Il router vede il testo dei comandi (anche di lavoro): usa sempre un modello locale.
+  ROUTER_MODEL = ENV.fetch("JARVIS_ROUTER_MODEL", WORK_MODEL)
+  MUSIC_APP   = ENV.fetch("JARVIS_MUSIC_APP", "Music") # Music | Spotify (solo macOS)
   MAX_TURNS   = 8
   MAX_TOOL_OUTPUT = 4000
   KEEP_ALIVE  = "30m"
