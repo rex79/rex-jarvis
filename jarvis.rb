@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 require_relative "lib/agent"
-require_relative "lib/router"
+require_relative "lib/dispatcher"
 
 def arg_value(flag)
   i = ARGV.index(flag)
@@ -44,13 +44,12 @@ if ARGV.include?("--digest")
 end
 
 # Ogni comando va al contesto giusto (lavoro o personale); --context lo forza.
-forced = arg_value("--context")
-agents = {}
+dispatcher = nil
 handle = lambda do |text|
-  route = forced ? Router::Route.new(Contexts.fetch(forced).id, text, "scelto") : Router.route(text)
-  agent = agents[route.context] ||= Agent.new(Contexts.fetch(route.context))
-  puts "[#{agent.context.label} · #{route.reason}]"
-  agent.ask(route.text)
+  dispatcher ||= Dispatcher.new(forced: arg_value("--context"))
+  reply = dispatcher.handle(text)
+  puts "[#{reply.label}]"
+  reply.text
 end
 
 begin
@@ -58,7 +57,7 @@ begin
     puts handle.call(question)
     exit
   end
-rescue Privacy::Error, ArgumentError => e
+rescue Privacy::Error, ArgumentError, Music::Error => e
   abort "❌ #{e.message}"
 end
 

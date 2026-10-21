@@ -20,21 +20,36 @@ end run'
   }.freeze
   ACTIONS = (BASIC.keys + SEARCH.keys).freeze
 
-  def self.control(action, query = nil, app: Config::MUSIC_APP, runner: method(:osascript))
+  def self.control(action, query = nil, app: nil, runner: method(:osascript))
+    app = normalize_app(app) || Config::MUSIC_APP
     action = action.to_s.downcase
     raise Error, "azione non valida: #{action} (#{ACTIONS.join(', ')})" unless ACTIONS.include?(action)
     raise Error, "app musicale non supportata: #{app} (#{APPS.join(' o ')})" unless APPS.include?(app)
 
     if BASIC.key?(action)
-      runner.call(%(tell application "#{app}" to #{BASIC[action]}), [])
+      # Solo "play" avvia l'app; pausa/avanti/indietro su un'app chiusa non devono aprirla.
+      script = %(tell application "#{app}" to #{BASIC[action]})
+      script = %(if application "#{app}" is running then #{script}) unless action == "play"
+      runner.call(script, [])
       return "Musica: #{action} (#{app})"
     end
 
+    # Cercare playlist o brani su Spotify richiede la sua Web API (OAuth): non ancora supportato.
     raise Error, "con Spotify posso solo play, pausa, avanti e indietro" if app == "Spotify"
     raise Error, "dimmi cosa cercare" if query.to_s.strip.empty?
 
     runner.call(SEARCH[action], [query.to_s.strip])
     "Musica: riproduco #{action} \"#{query.to_s.strip}\""
+  end
+
+  # Accetta i nomi detti a voce ("spotify", "apple music", "musica"); nil = preferenza configurata.
+  def self.normalize_app(app)
+    case app.to_s.strip.downcase
+    when "" then nil
+    when "spotify" then "Spotify"
+    when "music", "apple music", "musica", "itunes" then "Music"
+    else app.to_s
+    end
   end
 
   def self.osascript(script, args)
