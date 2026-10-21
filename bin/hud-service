@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# Tiene la dashboard di Jarvis sempre attiva su macOS con un LaunchAgent: parte al login,
+# si riavvia se si ferma, scrive i log in ~/Library/Logs/jarvis-hud.log.
+#   bin/hud-service install     installa e avvia (porta: JARVIS_HUD_PORT, default 7777)
+#   bin/hud-service uninstall   ferma e rimuove
+#   bin/hud-service status      stato del servizio e della dashboard
+#   bin/hud-service logs        ultime righe del log
+#   bin/hud-service open        apre la dashboard nel browser
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+LABEL="com.jarvis.hud"
+PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+LOG="$HOME/Library/Logs/jarvis-hud.log"
+PORT="${JARVIS_HUD_PORT:-7777}"
+DOMAIN="gui/$(id -u)"
+REPO="$(pwd)"
+
+[[ "$(uname)" == "Darwin" ]] || { echo "Solo macOS (su Linux usa un servizio systemd utente)."; exit 1; }
+
+xml() { sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' <<<"$1"; }
+
+wait_for_hud() {
+  for _ in $(seq 1 20); do
+    curl -s -o /dev/null -m 1 "http://localhost:$PORT/" && return 0
+    sleep 0.5
+  done
+  return 1
+}
+
+case "${1:-}" in
+  install)
+    RUBY="$(command -v ruby)" || { echo "Ruby non trovato"; exit 1; }
+    mkdir -p "$(dirname "$PLIST")" "$(dirname "$LOG")"
+    # launchd parte con un ambiente minimo: PATH esplicito (Homebrew, rbenv) e locale UTF-8.
+    cat > "$PLIST" <<PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$LABEL</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$(xml "$RUBY")</string>
+    <string>$(xml "$REPO/jarvis.rb")</string>
+    <string>--hud</string>
+    <string>--port</string>
+    <string>$PORT</string>
+  </array>
+  <key>WorkingDirectory</key><string>$(xml "$REPO")</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>$(xml "$(dirname "$RUBY"):$HOME/.rbenv/shims:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin")</string>
+    <key>LANG</key><string>it_IT.UTF-8</string>
+    <key>LC_ALL</key><string>it_IT.UTF-8</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>ProcessType</key><string>Interactive</string>
+  <key>StandardOutPath</key><string>$(xml "$LOG")</string>
+  <key>StandardErrorPath</key><string>$(xml "$LOG")</string>
+</dict>
+</plist>
+PLISTEOF
+    plutil -lint "$PLIST" >/dev/null
+    launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
+    launchctl bootstrap "$DOMAIN" "$PLIST"
+    if wait_for_hud; then
+      echo "✅ Jarvis HUD attivo su http://localhost:$PORT (parte al login, si riavvia se si ferma)"
+    else
+      echo "⚠️  servizio installato ma la dashboard non risponde: bin/hud-service logs"; exit 1
+    fi
+    ;;
+  uninstall)
+    launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
+    rm -f "$PLIST"
+    echo "✅ Jarvis HUD rimosso (il log resta in $LOG)"
+    ;;
+  status)
+    if launchctl print "$DOMAIN/$LABEL" >/dev/null 2>&1; then
+      launchctl print "$DOMAIN/$LABEL" | awk -F' = ' '/^\tstate|^\tpid|^\tlast exit code|^\truns/ {gsub(/\t/,""); print "  " $1 ": " $2}'
+    else
+      echo "  servizio non installato"
+    fi
+    if curl -s -o /dev/null -m 1 "http://localhost:$PORT/"; then echo "  dashboard: http://localhost:$PORT risponde"; else echo "  dashboard: non risponde"; fi
+    ;;
+  logs) tail -n "${2:-40}" "$LOG" ;;
+  open) open "http://localhost:$PORT/" ;;
+  *) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+esac
