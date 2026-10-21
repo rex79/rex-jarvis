@@ -36,8 +36,9 @@ class Agent
       Non hai accesso alle note di lavoro: se l'utente chiede cose di lavoro, digli di usare il
       prefisso "lavoro:".
       #{NOTES_HELP}
-      - music_control(action, query): controlla la musica (play, pause, next, previous,
-        playlist con il nome in query, song con il titolo in query).
+      - music_control(action, query, app): controlla la musica (play, pause, next, previous,
+        playlist con il nome in query, song con il titolo in query). Indica app (Spotify o Music)
+        solo se l'utente la nomina: altrimenti si usa la sua app preferita, #{Config::MUSIC_APP}.
     PROMPT
   }.freeze
 
@@ -96,7 +97,8 @@ class Agent
   def music_tool
     tool("music_control", "Controlla la musica sul Mac",
          { action: { type: "string", enum: Music::ACTIONS, description: "Cosa fare" },
-           query: { type: "string", description: "Nome della playlist o titolo del brano" } }, ["action"])
+           query: { type: "string", description: "Nome della playlist o titolo del brano" },
+           app: { type: "string", enum: Music::APPS, description: "Solo se l'utente nomina l'app" } }, ["action"])
   end
 
   def tool(name, description, properties, required)
@@ -127,7 +129,7 @@ class Agent
         when "read_file"     then @fs.read_file(args.fetch("file_path"))
         when "save_note"     then @notes.save(args.fetch("title"), args.fetch("text"))
         when "current_time"  then Time.now.strftime("%A %d/%m/%Y %H:%M")
-        when "music_control" then Music.control(args.fetch("action"), args["query"])
+        when "music_control" then Music.control(args.fetch("action"), args["query"], app: args["app"])
         end
       rescue StandardError => e
         # L'errore torna al modello, che può correggersi, invece di far crollare Jarvis.

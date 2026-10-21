@@ -136,11 +136,36 @@ class MusicTest < Minitest::Test
     [result, calls]
   end
 
-  def test_basic_actions
+  def test_basic_actions_do_not_launch_a_closed_app_except_play
     _, calls = run_music("next")
-    assert_equal [['tell application "Music" to next track', []]], calls
+    assert_equal [['if application "Music" is running then tell application "Music" to next track', []]], calls
     _, calls = run_music("pause", app: "Spotify")
-    assert_equal 'tell application "Spotify" to pause', calls.first[0]
+    assert_equal 'if application "Spotify" is running then tell application "Spotify" to pause', calls.first[0]
+    _, calls = run_music("play", app: "Spotify")
+    assert_equal 'tell application "Spotify" to play', calls.first[0]
+  end
+
+  def test_app_names_spoken_by_the_user_are_understood
+    { "spotify" => "Spotify", "Apple Music" => "Music", "musica" => "Music" }.each do |said, app|
+      _, calls = run_music("play", app: said)
+      assert_equal %(tell application "#{app}" to play), calls.first[0]
+    end
+  end
+
+  def test_without_an_app_the_configured_preference_is_used
+    calls = []
+    Config.stub_const(:MUSIC_APP, "Spotify") do
+      Music.control("play", runner: ->(script, _) { calls << script })
+    end
+    assert_equal ['tell application "Spotify" to play'], calls
+  end
+
+  def test_agent_passes_the_app_named_by_the_user
+    call = { "function" => { "name" => "music_control", "arguments" => { "action" => "play", "app" => "Spotify" } } }
+    agent = Agent.new(Contexts.personal, llm: FakeLLM.new({ "role" => "assistant", "content" => "", "tool_calls" => [call] }))
+    received = nil
+    Music.stub(:control, ->(action, query, app:) { received = [action, query, app]; "ok" }) { capture_io { agent.ask("metti Spotify") } }
+    assert_equal ["play", nil, "Spotify"], received
   end
 
   def test_search_text_is_passed_as_argument_not_inside_the_script

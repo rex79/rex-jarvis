@@ -183,5 +183,10 @@ ruby jarvis.rb --ask "personale: metti la playlist Focus"
 ruby jarvis.rb --ask "che riunioni ho segnato?" --context work
 ruby jarvis.rb --index                           # indicizza le note di entrambi i contesti
 ```
-La prima volta che Jarvis controlla la musica, macOS chiede il permesso di automazione per il
-Terminale: va concesso.
+La prima volta che Jarvis controlla un'app musicale, macOS chiede il permesso di automazione per il
+Terminale: va concesso (una volta per Musica e una per Spotify).
+
+Musica: l'app preferita è `JARVIS_MUSIC_APP` (Music o Spotify); nominandola nel comando ("metti
+Spotify", "pausa su Apple Music") si usa quella. Solo "play" avvia un'app chiusa: pausa, avanti e
+indietro non aprono nulla. Con Spotify: play, pausa, avanti e indietro; cercare una playlist o un
+brano per nome richiede la Web API di Spotify (OAuth), non ancora supportata.
