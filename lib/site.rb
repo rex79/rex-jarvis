@@ -1,4 +1,5 @@
 require "cgi"
+require "json"
 require "fileutils"
 require_relative "config"
 
@@ -46,7 +47,21 @@ module Site
     days.each { |day| File.write(File.join(out_dir, "#{day.date}.html"), page(day, days)) }
     File.write(File.join(out_dir, "index.html"), page(days.first, days))
     File.write(File.join(out_dir, "robots.txt"), "User-agent: *\nDisallow: /\n")
+    File.write(File.join(out_dir, "digest.json"), JSON.generate(feed(days.first, days)))
     "Sito generato: #{days.size} #{days.size == 1 ? 'giorno' : 'giorni'} in #{out_dir}"
+  end
+
+  # Versione leggibile dalle macchine dell'ultimo digest, per la dashboard sul Mac di lavoro.
+  def self.feed(day, days)
+    {
+      version: 1,
+      date: day&.date,
+      heading: day&.heading,
+      dates: days.first(14).map(&:date),
+      entries: (day ? day.entries : []).map do |e|
+        { title: e.title, source: e.source, category: e.category, url: e.url, summary: e.summary, why: e.why, low: e.low? }
+      end
+    }
   end
 
   def self.h(text)

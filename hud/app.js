@@ -63,32 +63,50 @@ function render(s) {
   setText('artist', mu.artist || '');
   setText('music-state', mu.error ? mu.error : `${mu.app || ''} · ${mu.state || ''}`);
 
-  const dg = s.digest || {};
-  setText('digest-date', dg.date ? `· ${dg.date}` : '');
+  renderDigest(s.digest || {});
+}
+
+function renderDigest(dg) {
+  const origin = dg.origin === 'remoto' ? ' · dal Mac mini' : '';
+  setText('digest-date', dg.date ? `· ${dg.date}${origin}` : '');
+  const note = $('digest-note');
+  note.hidden = !(dg.stale || (dg.error && !(dg.items || []).length));
+  note.textContent = dg.stale ? `Sito non raggiungibile, mostro l'ultima copia (${dg.error || ''})` : (dg.error || '');
+
   const list = $('digest');
   const items = dg.items || [];
   if (!items.length) {
     const li = document.createElement('li');
     li.className = 'dim';
-    li.textContent = dg.error || 'Nessun digest su questo computer.';
+    li.textContent = dg.error ? 'Digest non disponibile.' : 'Nessun digest: imposta JARVIS_DIGEST_URL.';
     list.replaceChildren(li);
-  } else {
-    list.replaceChildren(...items.map((it) => {
-      const li = document.createElement('li');
-      const meta = document.createElement('span');
-      meta.className = 'meta';
-      meta.textContent = [it.category, it.source].filter(Boolean).join(' · ');
-      const a = document.createElement(it.url ? 'a' : 'span');
-      if (it.url && /^https?:\/\//.test(it.url)) {
-        a.href = it.url;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-      }
-      a.textContent = it.title;
-      li.append(meta, a);
-      return li;
-    }));
+    return;
   }
+  list.replaceChildren(...items.map((it) => {
+    const li = document.createElement('li');
+    if (it.low) li.className = 'low';
+    const meta = document.createElement('span');
+    meta.className = 'meta';
+    meta.textContent = [it.category, it.source].filter(Boolean).join(' · ');
+    const a = document.createElement(it.url ? 'a' : 'span');
+    a.className = 'title';
+    if (it.url && /^https?:\/\//.test(it.url)) {
+      a.href = it.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+    }
+    a.textContent = it.title;
+    li.append(meta, a);
+    if (it.summary) {
+      const p = document.createElement('p');
+      p.className = 'summary';
+      p.textContent = it.summary;
+      p.title = 'Clic per espandere';
+      p.addEventListener('click', () => p.classList.toggle('open'));
+      li.append(p);
+    }
+    return li;
+  }));
 }
 
 async function refresh() {

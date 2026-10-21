@@ -40,7 +40,7 @@ body {
 #date { font-size: 11px; letter-spacing: .15em; }
 
 .layout {
-  position: relative; display: grid; grid-template-columns: 290px minmax(0, 1fr) 330px; gap: 24px;
+  position: relative; display: grid; grid-template-columns: 280px minmax(0, 1fr) 380px; gap: 24px;
   padding: 24px 28px; min-height: calc(100vh - 66px);
 }
 .col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
@@ -111,6 +111,20 @@ button:disabled { opacity: .4; cursor: wait; }
 .log li.work .tag { color: var(--amber); }
 .log li.err { border-left-color: var(--red); }
 .log .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.digest { gap: 14px; }
+.digest .title { display: block; font-size: 13px; line-height: 1.4; }
+.digest .summary {
+  margin: 4px 0 0; font-size: 12px; line-height: 1.5; color: var(--dim); cursor: pointer;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.digest .summary.open { display: block; color: var(--text); }
+.digest li.low { opacity: .55; }
+.note { margin: 0 0 8px; font-size: 11px; color: var(--amber); }
+@media (min-width: 1101px) {
+  .panel.grow { display: flex; flex-direction: column; min-height: 0; }
+  .panel.grow .digest { flex: 1; overflow-y: auto; max-height: calc(100vh - 420px); padding-right: 6px; }
+}
 
 .track { font-size: 16px; color: var(--cyan-soft); overflow-wrap: anywhere; }
 .controls { display: flex; gap: 8px; margin-top: 12px; }

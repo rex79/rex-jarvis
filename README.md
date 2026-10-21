@@ -207,6 +207,18 @@ batteria, disco), modelli Ollama in memoria, indicatore di privacy del contesto 
 Musica (cosa suona e comandi) e i titoli dell'ultimo digest. Si adatta al telefono e rispetta
 "riduci movimento".
 
+Digest nella dashboard: il sito pubblicato dal Mac mini contiene anche `digest.json` (ultimo digest
+con titoli, fonti, categorie, link e riassunti). Sul Mac di lavoro, in `~/.jarvis_env`:
+```
+JARVIS_DIGEST_URL=https://tuodominio.it/jarvis/
+# solo se la cartella è protetta da password (Basic auth, accettata solo su https):
+JARVIS_DIGEST_USER=...
+JARVIS_DIGEST_PASSWORD=...
+```
+La dashboard lo scarica al massimo ogni 15 minuti e, se il sito non risponde, mostra l'ultima copia con
+un avviso. Senza `JARVIS_DIGEST_URL` usa i digest locali in `~/brain/digest`. Il contenuto arriva da
+internet: viene validato (solo link http(s), lunghezze limitate) e inserito solo come testo.
+
 Sicurezza: il server ascolta solo su `127.0.0.1` (non è raggiungibile dalla rete), accetta solo
 Host `localhost`/`127.0.0.1` sulla sua porta (difesa dal DNS rebinding), le API richiedono un token
 casuale generato a ogni avvio e le POST con un Origin diverso vengono rifiutate; Content Security
