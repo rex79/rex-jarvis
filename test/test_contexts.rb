@@ -5,6 +5,7 @@ ENV["JARVIS_BRAIN"] = Dir.mktmpdir("personal")
 ENV["JARVIS_WORK_DIR"] = Dir.mktmpdir("work")
 require_relative "../lib/agent"
 require_relative "../lib/router"
+require_relative "../lib/dispatcher"
 
 # Modello finto: registra i messaggi e risponde secondo un copione.
 class FakeLLM
@@ -198,3 +199,70 @@ module StubConst
   end
 end
 Config.extend(StubConst)
+
+class IntentsTest < Minitest::Test
+  def test_simple_music_commands
+    {
+      "riprendi la musica" => ["play", nil], "Jarvis, riprendi" => ["play", nil], "fai ripartire la canzone" => ["play", nil],
+      "metti la musica" => ["play", nil], "metti in pausa la musica" => ["pause", nil], "pausa" => ["pause", nil],
+      "ferma Spotify" => ["pause", "Spotify"], "prossima canzone" => ["next", nil], "brano precedente" => ["previous", nil],
+      "riprendi la musica su apple music" => ["play", "Music"], "Jarvis continua" => ["play", nil]
+    }.each { |said, expected| assert_equal expected, Intents.music(said), said }
+  end
+
+  def test_not_simple_commands
+    ["metti la playlist Focus", "metti la musica di Vasco", "continua il report", "che ore sono?",
+     "dammi il daily briefing", "salva una nota", "torna indietro alla bozza"].each do |said|
+      assert_nil Intents.music(said), said
+    end
+  end
+end
+
+class DispatcherTest < Minitest::Test
+  class FakeMusic
+    attr_reader :calls
+
+    def initialize = @calls = []
+
+    def control(action, query, app:)
+      @calls << [action, query, app]
+      "Musica: #{action}"
+    end
+  end
+
+  def dispatcher(forced: nil)
+    music = FakeMusic.new
+    built = []
+    factory = ->(context) { built << context.id; Agent.new(context, llm: FakeLLM.new({ "role" => "assistant", "content" => "risposta" })) }
+    [Dispatcher.new(forced: forced, agent_factory: factory, music: music), music, built]
+  end
+
+  def test_resume_runs_play_immediately_without_any_model
+    d, music, built = dispatcher
+    reply = d.handle("riprendi la musica")
+    assert_equal [["play", nil, nil]], music.calls
+    assert_empty built
+    assert_equal "personale · comando rapido", reply.label
+  end
+
+  def test_work_words_disable_the_shortcut
+    d, music, built = dispatcher
+    d.handle("pausa sul progetto Shopify: dammi lo stato")
+    assert_empty music.calls
+    assert_equal [:work], built
+  end
+
+  def test_forcing_work_never_touches_music
+    d, music, = dispatcher(forced: "work")
+    d.handle("pausa")
+    assert_empty music.calls
+  end
+
+  def test_complex_requests_go_to_the_agent
+    d, music, built = dispatcher
+    reply = d.handle("metti la playlist Focus")
+    assert_empty music.calls
+    assert_equal [:personal], built
+    assert_equal "risposta", reply.text
+  end
+end

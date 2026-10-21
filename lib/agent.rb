@@ -36,8 +36,10 @@ class Agent
       Non hai accesso alle note di lavoro: se l'utente chiede cose di lavoro, digli di usare il
       prefisso "lavoro:".
       #{NOTES_HELP}
-      - music_control(action, query, app): controlla la musica (play, pause, next, previous,
-        playlist con il nome in query, song con il titolo in query). Indica app (Spotify o Music)
+      - music_control(action, query, app): controlla la musica. play avvia o RIPRENDE da dove era
+        (riprendi, continua, fai ripartire): usalo senza query e senza chiedere cosa riprodurre.
+        pause, next, previous; playlist con il nome in query, song con il titolo in query.
+        Non dire mai di aver fatto un'azione sulla musica senza aver chiamato lo strumento. Indica app (Spotify o Music)
         solo se l'utente la nomina: altrimenti si usa la sua app preferita, #{Config::MUSIC_APP}.
     PROMPT
   }.freeze

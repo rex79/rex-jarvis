@@ -186,6 +186,11 @@ ruby jarvis.rb --index                           # indicizza le note di entrambi
 La prima volta che Jarvis controlla un'app musicale, macOS chiede il permesso di automazione per il
 Terminale: va concesso (una volta per Musica e una per Spotify).
 
+Comandi rapidi: pausa, riprendi/continua, avanti e indietro sulla musica ("riprendi la musica",
+"Jarvis, pausa", "prossima canzone", "ferma Spotify") sono riconosciuti con regole fisse, senza
+modello: istantanei e sempre uguali. Un comando con parole di lavoro non è mai un comando rapido.
+Le richieste più complesse (una playlist, un brano) passano all'agente.
+
 Musica: l'app preferita è `JARVIS_MUSIC_APP` (Music o Spotify); nominandola nel comando ("metti
 Spotify", "pausa su Apple Music") si usa quella. Solo "play" avvia un'app chiusa: pausa, avanti e
 indietro non aprono nulla. Con Spotify: play, pausa, avanti e indietro; cercare una playlist o un
