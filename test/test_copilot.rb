@@ -6,6 +6,7 @@ require "json"
 ENV["JARVIS_BRAIN"] = Dir.mktmpdir("personal")
 ENV["JARVIS_WORK_DIR"] = Dir.mktmpdir("work")
 require_relative "../lib/dispatcher"
+require_relative "../lib/hud/server"
 
 class CopilotToolTest < Minitest::Test
   def configured
@@ -62,6 +63,13 @@ class CopilotToolTest < Minitest::Test
 end
 
 class CopilotDispatchTest < Minitest::Test
+  # Modello finto che chiede uno strumento al primo giro e poi risponde.
+  class ToolCallingLLM
+    def initialize(call) = @replies = [{ "role" => "assistant", "content" => "", "tool_calls" => [call] }]
+
+    def chat(*, **) = { "message" => @replies.shift || { "role" => "assistant", "content" => "fatto" } }
+  end
+
   class FakeCopilot
     attr_reader :asked, :saved
 
@@ -167,5 +175,88 @@ class BridgeTimeoutTest < Minitest::Test
     skip "manca .venv (bin/setup-copilot)" unless File.executable?(Copilot::PYTHON)
     out, status = Open3.capture2e(Copilot::PYTHON, "-I", File.expand_path("test_bridge.py", __dir__))
     assert status.success?, out
+  end
+end
+
+class CopilotSessionTest < Minitest::Test
+  class Clock
+    attr_accessor :now
+
+    def initialize = @now = Time.at(1_000_000)
+    def call = @now
+  end
+
+  def setup
+    @copilot = CopilotDispatchTest::FakeCopilot.new
+    @clock = Clock.new
+    @music = Class.new do
+      attr_reader :calls
+
+      def initialize = @calls = []
+
+      def control(action, *_, **_)
+        @calls << action
+        "Musica: #{action}"
+      end
+    end.new
+    @built = []
+    llm = Class.new { def chat(*, **) = { "message" => { "content" => "dal modello locale" } } }.new
+    session = CopilotSession.new(copilot: @copilot, clock: @clock)
+    factory = ->(c) { @built << c.id; Agent.new(c, llm: llm, copilot_session: session) }
+    @d = Dispatcher.new(agent_factory: factory, music: @music, session: session)
+  end
+
+  def test_a_follow_up_without_keywords_continues_the_copilot_conversation
+    @d.handle("Jarvis, dammi il daily briefing")
+    @clock.now += 120
+    reply = @d.handle("inseriscile nei to-do")
+    assert_equal [["Dammi il daily briefing", nil], ["Inseriscile nei to-do", "conv-1"]], @copilot.asked
+    assert_equal "lavoro · Copilot (seguito)", reply.label
+    assert_empty @built, "il modello locale non entra in gioco"
+  end
+
+  def test_after_fifteen_minutes_of_silence_the_conversation_is_closed
+    @d.handle("dammi il briefing")
+    @clock.now += 16 * 60
+    refute @d.session.active?
+    @d.handle("lavoro: dammi il briefing")
+    assert_equal [["Dammi il briefing", nil], ["Dammi il briefing", nil]], @copilot.asked
+  end
+
+  def test_personal_messages_and_music_never_reach_copilot_and_close_it
+    @d.handle("dammi il briefing")
+    @d.handle("personale: che ore sono?")
+    refute @d.session.active?
+    @d.handle("dammi il briefing")
+    @d.handle("pausa")
+    assert_equal ["pause"], @music.calls
+    refute @d.session.active?
+    assert_equal 2, @copilot.asked.size
+  end
+
+  def test_new_conversation_command
+    @d.handle("dammi il briefing")
+    reply = @d.handle("Jarvis, nuova conversazione")
+    refute @d.session.active?
+    assert_includes reply.text, "chiusa"
+    assert_equal 1, @copilot.asked.size
+  end
+
+  def test_the_agent_tool_continues_the_same_conversation
+    @d.handle("dammi il briefing")
+    call = { "function" => { "name" => "ask_copilot", "arguments" => { "request" => "aggiungi i task" } } }
+    llm = CopilotDispatchTest::ToolCallingLLM.new(call)
+    agent = Agent.new(Contexts.work, llm: llm, copilot_session: @d.session)
+    capture_io { agent.ask("aggiungi i task") }
+    assert_equal ["aggiungi i task", "conv-1"], @copilot.asked.last
+  end
+
+  def test_dashboard_reports_the_open_conversation
+    server = HudServer.new(port: 7777, dispatcher: @d, status: Struct.new(:snapshot).new({}), token: "t" * 48)
+    headers = { "host" => "localhost:7777", "x-jarvis-token" => "t" * 48, "origin" => "http://localhost:7777" }
+    refute JSON.parse(server.route("GET", "/api/status", headers, "").body)["copilot_active"]
+    body = JSON.parse(server.route("POST", "/api/ask", headers, '{"text":"dammi il briefing"}').body)
+    assert body["copilot_active"]
+    assert JSON.parse(server.route("GET", "/api/status", headers, "").body)["copilot_active"]
   end
 end

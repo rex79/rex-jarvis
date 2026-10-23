@@ -14,6 +14,11 @@ module Intents
   ].freeze
 
   COPILOT = /\b(copilot|briefing|agente)\b/i
+  NEW_CONVERSATION = /\A\s*(?:jarvis\s*[,:]?\s*)?(?:nuova conversazione|ricominciamo|chiudi (?:la )?conversazione)\s*[.!]?\s*\z/i
+
+  def self.new_conversation?(text)
+    text.to_s.match?(NEW_CONVERSATION)
+  end
 
   # Richieste da inoltrare così come sono all'agente Copilot (contesto di lavoro): il modello
   # locale non le riformula, l'agente riceve le parole dell'utente.

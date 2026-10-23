@@ -8,6 +8,7 @@ require_relative "tools/filesystem"
 require_relative "tools/notes"
 require_relative "tools/music"
 require_relative "tools/copilot"
+require_relative "copilot/session"
 
 # Agente con strumenti, legato a un contesto (lavoro o personale): vede solo le note del suo
 # contesto e solo i suoi strumenti. Nel contesto di lavoro tutto deve restare sul computer.
@@ -48,8 +49,9 @@ class Agent
 
   attr_reader :context
 
-  def initialize(context = Contexts.personal, llm: nil)
+  def initialize(context = Contexts.personal, llm: nil, copilot_session: nil)
     @context = context
+    @copilot_session = copilot_session || CopilotSession.new
     # Anche gli embedding delle note passano da OLLAMA_URL: con local_only deve essere locale.
     Privacy.assert_local!(Config::OLLAMA_URL, "Il contesto #{context.label}") if context.local_only
     FileUtils.mkdir_p(context.root)
@@ -59,7 +61,7 @@ class Agent
     @notes = Notes.new(context.root)
     @tools = note_tools
     @tools << music_tool if context.id == :personal
-    @tools << copilot_tool if context.id == :work && Copilot.configured?
+    @tools << copilot_tool if context.id == :work && @copilot_session.configured?
     @messages = [{ role: "system", content: PROMPTS.fetch(context.id) }]
   end
 
@@ -141,10 +143,7 @@ class Agent
         when "save_note"     then @notes.save(args.fetch("title"), args.fetch("text"))
         when "current_time"  then Time.now.strftime("%A %d/%m/%Y %H:%M")
         when "music_control" then Music.control(args.fetch("action"), args["query"], app: args["app"])
-        when "ask_copilot"
-          answer = Copilot.ask(args.fetch("request"))[:text]
-          Copilot.save_copy(args.fetch("request"), answer)
-          answer
+        when "ask_copilot" then @copilot_session.ask(args.fetch("request"))
         end
       rescue StandardError => e
         # L'errore torna al modello, che può correggersi, invece di far crollare Jarvis.

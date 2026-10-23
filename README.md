@@ -253,6 +253,11 @@ client pubblico, permesso delegato Power Platform `CopilotStudio.Copilots.Invoke
 - Le frasi con "copilot", "briefing" o "agente" nel contesto di lavoro vanno **direttamente** all'agente,
   senza passare dal modello locale; le parole rivolte a Jarvis ("Jarvis, chiedi a Copilot…") vengono
   tolte. Nella stessa sessione la conversazione con l'agente prosegue.
+- Conversazione agganciata: dopo una risposta dell'agente, i messaggi di lavoro successivi ("inseriscile
+  nei to-do") vanno a lui nella stessa conversazione per 15 minuti dall'ultimo scambio, anche senza
+  la parola "copilot". La chiudono "Jarvis, nuova conversazione", 15 minuti di silenzio, un messaggio
+  personale o un comando musicale. La dashboard mostra "Copilot · conversazione aperta". Anche lo
+  strumento `ask_copilot` dell'agente locale continua la stessa conversazione.
 - Ogni risposta viene salvata anche in `JARVIS_WORK_DIR/copilot/` (ricercabile con `search_notes`).
 - L'agente è anche lo strumento `ask_copilot`, disponibile **solo** nel contesto di lavoro.
 - Privacy: è l'unica eccezione al "solo locale" del contesto di lavoro, e porta i dati solo al tenant

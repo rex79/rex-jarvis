@@ -59,7 +59,7 @@ class HudServer
     case [method, path]
     when ["GET", "/"] then page
     when ["GET", "/app.css"], ["GET", "/app.js"] then asset(path)
-    when ["GET", "/api/status"] then api(headers) { @status.snapshot }
+    when ["GET", "/api/status"] then api(headers) { @status.snapshot.merge(copilot_active: copilot_active?) }
     when ["POST", "/api/ask"] then api(headers, post: true) { ask(parse(body)["text"]) }
     when ["POST", "/api/music"] then api(headers, post: true) { music(parse(body)) }
     else Response.new(404, "text/plain", "non trovato")
@@ -85,6 +85,10 @@ class HudServer
     Response.new(422, "application/json", JSON.generate(error: e.message))
   end
 
+  def copilot_active?
+    @dispatcher.respond_to?(:session) && @dispatcher.session.active?
+  end
+
   def valid_token?(given)
     !given.to_s.empty? && given.bytesize == @token.bytesize &&
       given.bytes.zip(@token.bytes).sum { |a, b| a ^ b }.zero? # confronto a tempo costante
@@ -105,7 +109,7 @@ class HudServer
     raise ArgumentError, "comando troppo lungo" if text.length > 2000
 
     reply = @lock.synchronize { @dispatcher.handle(text) }
-    { label: reply.label, text: reply.text.to_s }
+    { label: reply.label, text: reply.text.to_s, copilot_active: copilot_active? }
   end
 
   def music(data)

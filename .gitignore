@@ -10,3 +10,5 @@
 
 # Ambiente Python isolato per il client Copilot (bin/setup-copilot)
 .venv/
+__pycache__/
+*.pyc
