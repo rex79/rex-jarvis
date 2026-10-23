@@ -33,6 +33,8 @@ body {
 .brand { font-size: 18px; font-weight: 700; letter-spacing: .35em; color: var(--cyan); text-shadow: 0 0 12px rgba(94,214,255,.6); }
 .brand .dim { margin-left: 14px; font-size: 11px; letter-spacing: .2em; font-weight: 400; }
 .badge { font-size: 11px; letter-spacing: .14em; padding: 5px 12px; border: 1px solid var(--line); border-radius: 2px; }
+.badges { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.badge.work { color: var(--amber); border-color: rgba(255,181,71,.5); }
 .badge.ok { color: var(--green); border-color: rgba(94,255,177,.4); }
 .badge.ko { color: var(--red); border-color: rgba(255,93,108,.5); }
 .clock { display: flex; flex-direction: column; align-items: flex-end; }

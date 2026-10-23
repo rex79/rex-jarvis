@@ -16,6 +16,8 @@ async function api(path, body) {
   return data;
 }
 
+function setCopilot(active) { $('copilot-badge').hidden = !active; }
+
 function setText(id, value) { $(id).textContent = value ?? '–'; }
 
 function setState(state, label) {
@@ -35,6 +37,8 @@ function render(s) {
   const badge = $('privacy-badge');
   badge.className = 'badge ' + (s.privacy.local ? 'ok' : 'ko');
   badge.textContent = s.privacy.local ? 'LAVORO · SOLO LOCALE' : 'ATTENZIONE · OLLAMA NON LOCALE';
+
+  setCopilot(s.copilot_active);
 
   const sys = s.system || {};
   if (sys.error) {
@@ -146,6 +150,7 @@ $('console').addEventListener('submit', async (event) => {
   try {
     const reply = await api('/api/ask', { text });
     log(`Jarvis · ${reply.label}`, reply.text, reply.label.startsWith('lavoro') ? 'work' : '');
+    setCopilot(reply.copilot_active);
     setState('idle', 'IN ASCOLTO');
   } catch (e) {
     log('Errore', e.message, 'err');
