@@ -13,6 +13,23 @@ module Intents
     ["previous", /\b(precedente|indietro|torna)\b/i]
   ].freeze
 
+  COPILOT = /\b(copilot|briefing|agente)\b/i
+
+  # Richieste da inoltrare così come sono all'agente Copilot (contesto di lavoro): il modello
+  # locale non le riformula, l'agente riceve le parole dell'utente.
+  def self.copilot?(text)
+    text.to_s.match?(COPILOT)
+  end
+
+  # Toglie le parole rivolte a Jarvis ("Jarvis, chiedi a Copilot …"): l'agente riceve solo la richiesta.
+  # "dammi il daily briefing" resta com'è.
+  COPILOT_LEAD = /\A\s*(?:jarvis\s*[,:]?\s*)?(?:(?:chiedi|domanda)\s+(?:a|al|all')\s*)?(?:copilot|agente)\s*[,:]?\s*(?:(?:se|di|che)\s+)?/i
+
+  def self.copilot_request(text)
+    stripped = text.to_s.strip.sub(COPILOT_LEAD, "").sub(/\A\s*jarvis\s*[,:]?\s*/i, "")
+    stripped.empty? ? text.to_s.strip : stripped[0].upcase + stripped[1..]
+  end
+
   # Restituisce [azione, app] per un comando musicale semplice, altrimenti nil.
   # Vale se il testo nomina la musica, oppure se è solo il verbo ("pausa", "Jarvis, riprendi"):
   # "continua il report" non è un comando musicale.

@@ -7,6 +7,7 @@ require_relative "contexts"
 require_relative "tools/filesystem"
 require_relative "tools/notes"
 require_relative "tools/music"
+require_relative "tools/copilot"
 
 # Agente con strumenti, legato a un contesto (lavoro o personale): vede solo le note del suo
 # contesto e solo i suoi strumenti. Nel contesto di lavoro tutto deve restare sul computer.
@@ -27,7 +28,8 @@ class Agent
     work: <<~PROMPT,
       Sei Jarvis, l'assistente dell'utente, nel contesto LAVORO. Rispondi in italiano, in modo conciso.
       Lavori solo con strumenti e modelli che girano su questo computer: i dati di lavoro non devono
-      uscire da qui. Non hai accesso alle note personali né alla musica: se l'utente chiede cose
+      uscire da qui, con un'unica eccezione: ask_copilot, l'agente aziendale nel tenant Microsoft
+      dell'azienda. Per briefing, progetti, riunioni, Jira e calendario usa ask_copilot. Non hai accesso alle note personali né alla musica: se l'utente chiede cose
       personali, digli di usare il prefisso "personale:".
       #{NOTES_HELP}
     PROMPT
@@ -57,6 +59,7 @@ class Agent
     @notes = Notes.new(context.root)
     @tools = note_tools
     @tools << music_tool if context.id == :personal
+    @tools << copilot_tool if context.id == :work && Copilot.configured?
     @messages = [{ role: "system", content: PROMPTS.fetch(context.id) }]
   end
 
@@ -96,6 +99,12 @@ class Agent
     ]
   end
 
+  def copilot_tool
+    tool("ask_copilot", "Inoltra una richiesta all'agente aziendale Copilot (PM Assistant): briefing, stato dei " \
+                        "progetti, riunioni, Jira, calendario, documenti aziendali, salvataggio di briefing e knowledge",
+         { request: { type: "string", description: "La richiesta, in italiano, con le parole dell'utente" } }, ["request"])
+  end
+
   def music_tool
     tool("music_control", "Controlla la musica sul Mac",
          { action: { type: "string", enum: Music::ACTIONS, description: "Cosa fare" },
@@ -132,6 +141,10 @@ class Agent
         when "save_note"     then @notes.save(args.fetch("title"), args.fetch("text"))
         when "current_time"  then Time.now.strftime("%A %d/%m/%Y %H:%M")
         when "music_control" then Music.control(args.fetch("action"), args["query"], app: args["app"])
+        when "ask_copilot"
+          answer = Copilot.ask(args.fetch("request"))[:text]
+          Copilot.save_copy(args.fetch("request"), answer)
+          answer
         end
       rescue StandardError => e
         # L'errore torna al modello, che può correggersi, invece di far crollare Jarvis.

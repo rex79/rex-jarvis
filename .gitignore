@@ -7,3 +7,6 @@
 # Segreti locali: mai nel repo
 .jarvis_env
 *.env
+
+# Ambiente Python isolato per il client Copilot (bin/setup-copilot)
+.venv/

@@ -43,6 +43,23 @@ if ARGV.include?("--digest")
   exit
 end
 
+if ARGV.include?("--copilot-login") || ARGV.include?("--copilot-status")
+  require_relative "lib/tools/copilot"
+  begin
+    if ARGV.include?("--copilot-login")
+      puts "Si apre il browser per l'accesso Microsoft aziendale…"
+      data = Copilot.login
+      puts "✅ Collegato come #{data['account']}"
+    else
+      data = Copilot.status
+      puts data["logged_in"] ? "✅ Collegato come #{data['account']}" : "Non collegato: ruby jarvis.rb --copilot-login"
+    end
+  rescue Copilot::Error => e
+    abort "❌ #{e.message}"
+  end
+  exit
+end
+
 if ARGV.include?("--hud")
   require_relative "lib/hud/server"
   port = Integer(arg_value("--port") || 7777)

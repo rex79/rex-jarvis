@@ -1,6 +1,7 @@
 require_relative "agent"
 require_relative "router"
 require_relative "intents"
+require_relative "tools/copilot"
 
 # Riceve un comando (scritto o, in futuro, trascritto dalla voce) e lo esegue:
 #   1. comandi musicali semplici → subito, senza modello (contesto personale);
@@ -8,10 +9,11 @@ require_relative "intents"
 class Dispatcher
   Reply = Struct.new(:label, :text)
 
-  def initialize(forced: nil, agent_factory: ->(context) { Agent.new(context) }, music: Music)
+  def initialize(forced: nil, agent_factory: ->(context) { Agent.new(context) }, music: Music, copilot: Copilot)
     @forced = forced && Contexts.fetch(forced).id
     @agent_factory = agent_factory
     @music = music
+    @copilot = copilot
     @agents = {}
   end
 
@@ -23,6 +25,16 @@ class Dispatcher
     end
 
     route = @forced ? Router::Route.new(@forced, text, "scelto") : Router.route(text)
+
+    # Richieste esplicite all'agente aziendale: inoltro diretto, una conversazione per sessione.
+    if route.context == :work && @copilot.configured? && Intents.copilot?(route.text)
+      request = Intents.copilot_request(route.text)
+      reply = @copilot.ask(request, conversation_id: @copilot_conversation)
+      @copilot_conversation = reply[:conversation_id]
+      @copilot.save_copy(request, reply[:text])
+      return Reply.new("lavoro · Copilot", reply[:text])
+    end
+
     agent = @agents[route.context] ||= @agent_factory.call(Contexts.fetch(route.context))
     Reply.new("#{agent.context.label} · #{route.reason}", agent.ask(route.text))
   end
