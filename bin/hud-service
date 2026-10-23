@@ -20,6 +20,23 @@ REPO="$(pwd)"
 
 xml() { sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' <<<"$1"; }
 
+# bootout ritorna prima che launchd abbia finito di fermare il servizio: un bootstrap subito
+# dopo fallisce con "Bootstrap failed: 5". Si aspetta che il servizio sia davvero sparito.
+stop_service() {
+  launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
+  for _ in $(seq 1 40); do
+    launchctl print "$DOMAIN/$LABEL" >/dev/null 2>&1 || return 0
+    sleep 0.25
+  done
+  echo "⚠️  il servizio precedente non si è fermato in 10 secondi"; return 1
+}
+
+start_service() {
+  launchctl bootstrap "$DOMAIN" "$PLIST" 2>/dev/null && return 0
+  sleep 2 # un secondo tentativo copre i casi in cui launchd è ancora occupato
+  launchctl bootstrap "$DOMAIN" "$PLIST"
+}
+
 wait_for_hud() {
   for _ in $(seq 1 20); do
     curl -s -o /dev/null -m 1 "http://localhost:$PORT/" && return 0
@@ -64,8 +81,8 @@ case "${1:-}" in
 </plist>
 PLISTEOF
     plutil -lint "$PLIST" >/dev/null
-    launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
-    launchctl bootstrap "$DOMAIN" "$PLIST"
+    stop_service
+    start_service
     if wait_for_hud; then
       echo "✅ Jarvis HUD attivo su http://localhost:$PORT (parte al login, si riavvia se si ferma)"
     else
@@ -73,7 +90,7 @@ PLISTEOF
     fi
     ;;
   uninstall)
-    launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
+    stop_service
     rm -f "$PLIST"
     echo "✅ Jarvis HUD rimosso (il log resta in $LOG)"
     ;;
