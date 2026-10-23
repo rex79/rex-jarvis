@@ -20,22 +20,23 @@ module Copilot
   ROOT = File.expand_path("../..", __dir__)
   PYTHON = File.join(ROOT, ".venv", "bin", "python")
   BRIDGE = File.join(ROOT, "lib", "copilot", "bridge.py")
-  TIMEOUT = 240
+  TIMEOUT = 16 * 60 # il ponte si ferma da solo prima (inattività 5 min, totale 15 min)
   VARS = %w[JARVIS_COPILOT_TENANT_ID JARVIS_COPILOT_CLIENT_ID JARVIS_COPILOT_ENVIRONMENT_ID JARVIS_COPILOT_AGENT].freeze
 
   def self.configured?
     VARS.all? { |v| !ENV[v].to_s.strip.empty? } && File.executable?(PYTHON)
   end
 
-  def self.ask(text, conversation_id: nil, runner: method(:run))
+  # progress: chiamato con i secondi trascorsi mentre l'agente lavora (per terminale e dashboard).
+  def self.ask(text, conversation_id: nil, progress: nil, runner: method(:run))
     raise Error.new("Copilot non configurato: servono #{VARS.join(', ')} e bin/setup-copilot", "CONFIG") unless configured?
 
-    data = runner.call("ask", JSON.generate(text: text, conversation_id: conversation_id))
+    data = runner.call("ask", JSON.generate(text: text, conversation_id: conversation_id), progress)
     { text: data.fetch("text"), conversation_id: data["conversation_id"] }
   end
 
-  def self.status(runner: method(:run)) = runner.call("status", "")
-  def self.login(runner: method(:run)) = runner.call("login", "")
+  def self.status(runner: method(:run)) = runner.call("status", "", nil)
+  def self.login(runner: method(:run)) = runner.call("login", "", nil)
 
   # Copia locale della risposta nelle note di lavoro (Markdown, ricercabile con search_notes).
   def self.save_copy(question, answer, dir: File.join(Config::WORK_DIR, "copilot"), now: Time.now)
@@ -46,13 +47,16 @@ module Copilot
     path
   end
 
-  def self.run(command, input)
+  def self.run(command, input, progress = nil)
     out = +""
     Open3.popen3(PYTHON, "-I", BRIDGE, command) do |stdin, stdout, stderr, thread|
       stdin.write(input)
       stdin.close
       reader = Thread.new { stdout.read }
-      Thread.new { stderr.read } # svuota stderr (log del client) senza mostrarlo
+      # stderr: righe "PROGRESS <secondi>" dal ponte; il resto (log del client) viene scartato.
+      Thread.new do
+        stderr.each_line { |line| progress&.call(line[/\APROGRESS (\d+)/, 1].to_i) if line.start_with?("PROGRESS") }
+      end
       unless thread.join(command == "login" ? 600 : TIMEOUT)
         Process.kill("TERM", thread.pid)
         raise Error.new("l'agente Copilot non ha risposto entro #{TIMEOUT} secondi", "TIMEOUT")

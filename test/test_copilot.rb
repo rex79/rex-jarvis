@@ -14,7 +14,7 @@ class CopilotToolTest < Minitest::Test
 
   def test_ask_sends_text_and_conversation_as_json
     received = nil
-    runner = ->(command, input) { received = [command, JSON.parse(input)]; { "text" => "Briefing pronto", "conversation_id" => "c1" } }
+    runner = ->(command, input, _progress) { received = [command, JSON.parse(input)]; { "text" => "Briefing pronto", "conversation_id" => "c1" } }
     reply = configured { Copilot.ask("dammi il briefing", conversation_id: "c0", runner: runner) }
     assert_equal ["ask", { "text" => "dammi il briefing", "conversation_id" => "c0" }], received
     assert_equal({ text: "Briefing pronto", conversation_id: "c1" }, reply)
@@ -35,6 +35,19 @@ class CopilotToolTest < Minitest::Test
     end
   end
 
+  def test_progress_lines_from_the_bridge_reach_the_callback
+    seen = []
+    Open3.stub(:popen3, ->(*_, &block) {
+      out = StringIO.new(%({"text": "ok", "conversation_id": "c"}\n))
+      err = StringIO.new("PROGRESS 5\nlog del client\nPROGRESS 65\n")
+      thread = Struct.new(:pid) { def join(*) = sleep(0.05) && self }.new(0)
+      block.call(StringIO.new, out, err, thread)
+    }) do
+      Copilot.run("ask", "{}", ->(s) { seen << s })
+    end
+    assert_equal [5, 65], seen
+  end
+
   def test_bridge_errors_become_copilot_errors_with_code
     Open3.stub(:popen3, ->(*_, &block) {
       stdin = StringIO.new
@@ -42,7 +55,7 @@ class CopilotToolTest < Minitest::Test
       thread = Struct.new(:pid) { def join(*) = self }.new(0)
       block.call(stdin, out, StringIO.new, thread)
     }) do
-      error = assert_raises(Copilot::Error) { Copilot.run("ask", "{}") }
+      error = assert_raises(Copilot::Error) { Copilot.run("ask", "{}", nil) }
       assert_equal "LOGIN_REQUIRED", error.code
     end
   end
@@ -60,7 +73,8 @@ class CopilotDispatchTest < Minitest::Test
 
     def configured? = @configured
 
-    def ask(text, conversation_id: nil)
+    def ask(text, conversation_id: nil, progress: nil)
+      progress&.call(42)
       @asked << [text, conversation_id]
       { text: "risposta #{@asked.size}", conversation_id: "conv-1" }
     end
@@ -92,6 +106,15 @@ class CopilotDispatchTest < Minitest::Test
     d.handle("dammi il briefing")
     d.handle("lavoro: chiedi a copilot i rischi del progetto Shopify")
     assert_equal [["Dammi il briefing", nil], ["I rischi del progetto Shopify", "conv-1"]], copilot.asked
+  end
+
+  def test_progress_is_forwarded_while_copilot_works
+    copilot = FakeCopilot.new
+    d, = dispatcher(copilot)
+    seen = []
+    d.progress = ->(s) { seen << s }
+    d.handle("dammi il briefing")
+    assert_equal [42], seen
   end
 
   def test_personal_requests_never_reach_copilot
@@ -135,5 +158,14 @@ class CopilotRequestTest < Minitest::Test
     d = Dispatcher.new(music: nil, copilot: copilot)
     d.handle("lavoro: chiedi a Copilot quali strumenti hai")
     assert_equal [["Quali strumenti hai", nil]], copilot.asked
+  end
+end
+
+
+class BridgeTimeoutTest < Minitest::Test
+  def test_python_bridge_inactivity_timeout
+    skip "manca .venv (bin/setup-copilot)" unless File.executable?(Copilot::PYTHON)
+    out, status = Open3.capture2e(Copilot::PYTHON, "-I", File.expand_path("test_bridge.py", __dir__))
+    assert status.success?, out
   end
 end

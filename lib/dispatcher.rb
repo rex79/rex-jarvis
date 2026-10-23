@@ -9,6 +9,8 @@ require_relative "tools/copilot"
 class Dispatcher
   Reply = Struct.new(:label, :text)
 
+  attr_accessor :progress # chiamato con i secondi trascorsi mentre Copilot lavora
+
   def initialize(forced: nil, agent_factory: ->(context) { Agent.new(context) }, music: Music, copilot: Copilot)
     @forced = forced && Contexts.fetch(forced).id
     @agent_factory = agent_factory
@@ -29,7 +31,7 @@ class Dispatcher
     # Richieste esplicite all'agente aziendale: inoltro diretto, una conversazione per sessione.
     if route.context == :work && @copilot.configured? && Intents.copilot?(route.text)
       request = Intents.copilot_request(route.text)
-      reply = @copilot.ask(request, conversation_id: @copilot_conversation)
+      reply = @copilot.ask(request, conversation_id: @copilot_conversation, progress: @progress)
       @copilot_conversation = reply[:conversation_id]
       @copilot.save_copy(request, reply[:text])
       return Reply.new("lavoro · Copilot", reply[:text])
