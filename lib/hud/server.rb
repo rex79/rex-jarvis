@@ -3,6 +3,7 @@ require "json"
 require "securerandom"
 require_relative "status"
 require_relative "../tools/music"
+require_relative "../tools/copilot"
 
 # Server HTTP minimo per la dashboard, solo libreria standard. Anche se ascolta solo su
 # 127.0.0.1, una pagina web qualsiasi aperta nel browser potrebbe provare a mandargli
@@ -80,7 +81,7 @@ class HudServer
     return Response.new(403, "application/json", '{"error":"origine non consentita"}') if post && !allowed_origin?(headers["origin"])
 
     Response.new(200, "application/json", JSON.generate(yield))
-  rescue ArgumentError, Music::Error => e
+  rescue ArgumentError, Music::Error, Copilot::Error => e
     Response.new(422, "application/json", JSON.generate(error: e.message))
   end
 

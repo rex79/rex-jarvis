@@ -235,3 +235,28 @@ bin/hud-service uninstall   # ferma e rimuove
 Usa un LaunchAgent (`~/Library/LaunchAgents/com.jarvis.hud.plist`). Dopo un `git pull` che cambia il
 codice Ruby, rilancia `bin/hud-service install` per riavviarlo con la versione nuova (HTML, CSS e JS
 della dashboard invece si aggiornano subito). Ollama deve essere attivo: l'app di Ollama parte al login.
+
+## Agente Copilot Studio (contesto di lavoro)
+Jarvis inoltra le richieste di lavoro all'agente aziendale Copilot Studio con il client ufficiale
+Microsoft (`microsoft-agents-copilotstudio-client`), in un ambiente Python isolato in `.venv`.
+
+```bash
+bin/setup-copilot                 # installa il client in .venv (escluso da git)
+ruby jarvis.rb --copilot-login    # accesso Microsoft nel browser (una volta; MFA compresa)
+ruby jarvis.rb --copilot-status
+ruby jarvis.rb --ask "Jarvis, dammi il daily briefing"
+```
+In `~/.jarvis_env`: `JARVIS_COPILOT_TENANT_ID`, `JARVIS_COPILOT_CLIENT_ID` (registrazione app Entra ID,
+client pubblico, permesso delegato Power Platform `CopilotStudio.Copilots.Invoke`),
+`JARVIS_COPILOT_ENVIRONMENT_ID` e `JARVIS_COPILOT_AGENT` (schema name dell'agente).
+
+- Le frasi con "copilot", "briefing" o "agente" nel contesto di lavoro vanno **direttamente** all'agente,
+  senza passare dal modello locale; le parole rivolte a Jarvis ("Jarvis, chiedi a Copilot…") vengono
+  tolte. Nella stessa sessione la conversazione con l'agente prosegue.
+- Ogni risposta viene salvata anche in `JARVIS_WORK_DIR/copilot/` (ricercabile con `search_notes`).
+- L'agente è anche lo strumento `ask_copilot`, disponibile **solo** nel contesto di lavoro.
+- Privacy: è l'unica eccezione al "solo locale" del contesto di lavoro, e porta i dati solo al tenant
+  Microsoft dell'azienda: il ponte rifiuta endpoint che non siano `*.api.powerplatform.com`. Il token
+  resta nel Portachiavi di macOS (`msal-extensions`), mai in chiaro su disco.
+- L'agente usa i suoi strumenti (salvataggi, Jira, posta…) come quando lo usi da Teams: una richiesta
+  come "salvamelo" fa davvero salvare.

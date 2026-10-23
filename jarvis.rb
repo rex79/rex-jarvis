@@ -43,6 +43,23 @@ if ARGV.include?("--digest")
   exit
 end
 
+if ARGV.include?("--copilot-login") || ARGV.include?("--copilot-status")
+  require_relative "lib/tools/copilot"
+  begin
+    if ARGV.include?("--copilot-login")
+      puts "Si apre il browser per l'accesso Microsoft aziendale…"
+      data = Copilot.login
+      puts "✅ Collegato come #{data['account']}"
+    else
+      data = Copilot.status
+      puts data["logged_in"] ? "✅ Collegato come #{data['account']}" : "Non collegato: ruby jarvis.rb --copilot-login"
+    end
+  rescue Copilot::Error => e
+    abort "❌ #{e.message}"
+  end
+  exit
+end
+
 if ARGV.include?("--hud")
   require_relative "lib/hud/server"
   port = Integer(arg_value("--port") || 7777)
@@ -57,7 +74,11 @@ end
 # Ogni comando va al contesto giusto (lavoro o personale); --context lo forza.
 dispatcher = nil
 handle = lambda do |text|
-  dispatcher ||= Dispatcher.new(forced: arg_value("--context"))
+  dispatcher ||= Dispatcher.new(forced: arg_value("--context")).tap do |d|
+    d.progress = lambda do |seconds|
+      $stderr.print "\r⏳ Copilot sta lavorando… #{seconds / 60}:#{format('%02d', seconds % 60)}" if $stderr.tty?
+    end
+  end
   reply = dispatcher.handle(text)
   puts "[#{reply.label}]"
   reply.text
@@ -65,10 +86,13 @@ end
 
 begin
   if (question = arg_value("--ask"))
-    puts handle.call(question)
+    answer = handle.call(question)
+    $stderr.print "\r\e[K" if $stderr.tty?
+    puts answer
     exit
   end
-rescue Privacy::Error, ArgumentError, Music::Error => e
+rescue Privacy::Error, ArgumentError, Music::Error, Copilot::Error => e
+  $stderr.print "\r" if $stderr.tty?
   abort "❌ #{e.message}"
 end
 
@@ -83,7 +107,9 @@ loop do
   next if question.strip.empty?
 
   begin
-    puts "\nJarvis: #{handle.call(question)}\n\n"
+    answer = handle.call(question)
+    $stderr.print "\r\e[K" if $stderr.tty?
+    puts "\nJarvis: #{answer}\n\n"
   rescue Privacy::Error => e
     abort "❌ #{e.message}"
   rescue StandardError => e
