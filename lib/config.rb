@@ -25,4 +25,5 @@ module Config
   DIGEST_HOURS  = Integer(ENV.fetch("JARVIS_DIGEST_HOURS", "48"))
   SITE_DIR      = File.expand_path(ENV.fetch("JARVIS_SITE_DIR", "~/jarvis-site"))
   SOURCES_FILE  = File.expand_path("../config/sources.yml", __dir__)
+  SIGNALS_FILE  = File.expand_path("../config/signals.yml", __dir__)
 end

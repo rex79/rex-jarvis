@@ -68,6 +68,43 @@ function render(s) {
   setText('music-state', mu.error ? mu.error : `${mu.app || ''} · ${mu.state || ''}`);
 
   renderDigest(s.digest || {});
+  renderSignals(s.signals);
+}
+
+const euro = (v) => (v == null ? '–' : v.toLocaleString('it-IT', { maximumFractionDigits: 2 }));
+
+function renderSignals(sg) {
+  const list = $('signals');
+  const items = (sg && sg.signals) || [];
+  const first = items.find((it) => it.date);
+  setText('signals-date', first ? `· ${new Date(first.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}` : '');
+  if (!items.length) {
+    const li = document.createElement('li');
+    li.className = 'dim';
+    li.textContent = sg && sg.error ? 'Segnali non disponibili.' : 'Nessun segnale: ruby jarvis.rb --signals';
+    list.replaceChildren(li);
+    return;
+  }
+  list.replaceChildren(...items.map((it) => {
+    const li = document.createElement('li');
+    const head = document.createElement('div');
+    head.className = 'metric';
+    const name = document.createElement('span');
+    name.textContent = it.product;
+    const action = document.createElement('b');
+    action.className = `action ${it.action || 'error'}`;
+    action.textContent = it.error ? 'N/D' : it.label;
+    head.append(name, action);
+    const detail = document.createElement('div');
+    detail.className = 'dim small';
+    detail.textContent = it.error
+      ? it.error
+      : [`chiusura ${euro(it.close)}`, it.stop != null ? `stop ${euro(it.stop)}` : null,
+         it.since ? `dal ${new Date(it.since).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}` : null]
+          .filter(Boolean).join(' · ');
+    li.append(head, detail);
+    return li;
+  }));
 }
 
 function renderDigest(dg) {

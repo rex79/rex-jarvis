@@ -43,6 +43,26 @@ if ARGV.include?("--digest")
   exit
 end
 
+if ARGV.include?("--signals")
+  require_relative "lib/signals"
+  begin
+    path, reports = Signals.run
+  rescue Signals::Error, ArgumentError => e
+    abort "❌ #{e.message}"
+  end
+  reports.each do |r|
+    s = r.signal
+    puts r.error ? "#{s.product}: non disponibile (#{r.error})" : "#{s.product}: #{Signals::Strategy::ACTIONS[s.action]}"
+  end
+  puts "Segnali scritti in #{path}"
+  begin
+    puts Notes.build_index # rende i segnali ricercabili da search_notes
+  rescue StandardError => e
+    warn "⚠️  indicizzazione fallita (i segnali sono comunque salvati): #{e.message}"
+  end
+  exit
+end
+
 if ARGV.include?("--copilot-login") || ARGV.include?("--copilot-status")
   require_relative "lib/tools/copilot"
   begin
