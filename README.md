@@ -153,6 +153,34 @@ non riempie passano alle migliori voci rimaste. Il totale è la somma dei posti 
 raggruppate in sezioni, con una barra per saltare dall'una all'altra e le card su più colonne sugli
 schermi larghi. I digest vecchi, senza categorie, restano una lista unica.
 
+## Segnali crypto (Coinbase)
+Jarvis calcola ogni giorno un segnale di trend sulle coppie di `config/signals.yml` (BTC-EUR ed ETH-EUR
+di default) e ti dice se la regola è dentro o fuori. **Non manda ordini e non ha chiavi di Coinbase**:
+l'ordine, se vuoi seguirlo, lo inserisci tu su Coinbase.
+
+```bash
+ruby jarvis.rb --signals    # scarica le candele, calcola segnale e backtest, scrive la nota
+```
+- **Dati:** candele giornaliere dall'API pubblica di Coinbase (nessuna chiave, nessun account, solo prezzi).
+  La candela del giorno in corso non è chiusa e non viene usata.
+- **Regola:** DENTRO quando la chiusura è sopra la media a 200 giorni e la media a 50 è sopra quella a 200,
+  FUORI altrimenti. Niente modelli: lo stesso storico dà sempre lo stesso segnale. Periodi, ATR e
+  commissione si cambiano in `config/signals.yml`.
+- **Segnale:** ENTRA o ESCI il giorno in cui la regola cambia stato, altrimenti RESTA DENTRO o RESTA FUORI,
+  con la data dell'ultimo cambio e uno stop indicativo (chiusura − 3 × ATR a 14 giorni).
+- **Backtest:** negli ultimi 5 anni, confrontato con "compra e tieni", con rendimento, ribasso massimo,
+  operazioni e tempo investito. Ogni segnale si esegue all'apertura del giorno dopo pagando la commissione
+  a ogni acquisto e vendita; lo stop non è simulato.
+- **Dove lo trovi:** `~/brain/signals/AAAA-MM-GG.md` (indicizzata, quindi `search_notes` la trova), un
+  riquadro nella dashboard (da `~/brain/signals/latest.json`) e l'output del comando.
+
+La candela giornaliera di Coinbase chiude alle 00:00 UTC; lancialo ogni mattina prima del digest con cron:
+```
+50 6 * * * cd ~/jarvis && ruby jarvis.rb --signals >> ~/jarvis-signals.log 2>&1
+```
+La dashboard legge i segnali della macchina su cui gira: sul Mac di lavoro basta lanciare lì lo stesso
+comando (sono solo prezzi pubblici).
+
 ## Installazione su una nuova macchina
 ```bash
 git clone git@github.com:rex79/rex-jarvis.git && cd rex-jarvis

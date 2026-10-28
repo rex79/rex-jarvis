@@ -123,6 +123,11 @@ button:disabled { opacity: .4; cursor: wait; }
 .digest .summary.open { display: block; color: var(--text); }
 .digest li.low { opacity: .55; }
 .note { margin: 0 0 8px; font-size: 11px; color: var(--amber); }
+.signals { gap: 10px; }
+.signals .action { letter-spacing: .12em; }
+.signals .action.entra { color: var(--cyan); text-shadow: 0 0 8px rgba(94,214,255,.6); }
+.signals .action.esci, .signals .action.error { color: var(--red); }
+.signals .action.resta_fuori, .signals .action.dati_insufficienti { color: var(--dim); }
 @media (min-width: 1101px) {
   .panel.grow { display: flex; flex-direction: column; min-height: 0; }
   .panel.grow .digest { flex: 1; overflow-y: auto; max-height: calc(100vh - 420px); padding-right: 6px; }

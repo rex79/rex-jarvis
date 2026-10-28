@@ -1,0 +1,22 @@
+# Segnali di trend sulle crypto: ruby jarvis.rb --signals
+# I dati sono le candele giornaliere pubbliche di Coinbase (nessuna chiave, nessun account).
+# Jarvis suggerisce soltanto: l'ordine su Coinbase lo decidi e lo inserisci tu.
+
+products:
+  - BTC-EUR
+  - ETH-EUR
+
+# Regola: DENTRO quando la chiusura è sopra la media lenta e la media veloce è sopra la lenta,
+# FUORI altrimenti. Si valuta sulla candela del giorno appena chiuso (00:00 UTC).
+strategy:
+  fast: 50       # media mobile veloce, in giorni
+  slow: 200      # media mobile lenta, in giorni
+  atr: 14        # giorni per la volatilità media (ATR)
+  stop_atr: 3    # stop indicativo = chiusura − stop_atr × ATR (non usato nel backtest)
+
+# Commissione per ogni acquisto o vendita, in percentuale. Controlla la tua fascia su Coinbase
+# (Advanced: ordini limite "maker" costano meno di quelli a mercato "taker").
+fee_percent: 0.6
+
+backtest:
+  years: 5       # anni di storico su cui misurare la regola

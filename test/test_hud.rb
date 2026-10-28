@@ -138,6 +138,15 @@ class HudStatusTest < Minitest::Test
                       summary: "Testo.", why: nil, low: false }], digest[:items]
     end
   end
+
+  def test_signals_panel_reads_latest_json_or_stays_empty
+    Dir.mktmpdir do |dir|
+      file = File.join(dir, "latest.json")
+      assert_nil HudStatus.new(signals_file: file, ollama_url: "http://127.0.0.1:1").snapshot[:signals]
+      File.write(file, JSON.generate(signals: [{ product: "BTC-EUR", action: "entra", label: "ENTRA" }]))
+      assert_equal "ENTRA", HudStatus.new(signals_file: file, ollama_url: "http://127.0.0.1:1").snapshot[:signals]["signals"][0]["label"]
+    end
+  end
 end
 
 class DigestFeedTest < Minitest::Test
