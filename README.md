@@ -199,6 +199,7 @@ In `~/.jarvis_env` (la chiave `OPENROUTER_API_KEY` è quella del digest):
 ```
 JARVIS_TRADING_MODEL=provider/modello        # economico e bravo con gli strumenti (tool calling)
 JARVIS_TRADING_DEEP_MODEL=provider/modello   # opzionale: per i ruoli che decidono, default il precedente
+JARVIS_TRADING_TICKERS=NVDA,ENEL.MI           # i tuoi titoli (ticker Yahoo Finance), vince su config/trading.yml
 SEC_EDGAR_USER_AGENT="Nome Cognome email"   # opzionale, consigliato da TradingAgents per i dati SEC
 ```
 - **Costi:** ogni titolo richiede decine di chiamate al modello; Jarvis accetta al massimo 5 titoli e un

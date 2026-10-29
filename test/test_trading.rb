@@ -21,10 +21,15 @@ class TradingTest < Minitest::Test
   end
 
   def test_tickers_are_normalized_and_capped
-    assert_equal %w[NVDA ENEL.MI], Trading.tickers("tickers" => [" nvda", "ENEL.MI", "NVDA"])
-    assert_raises(Trading::Error) { Trading.tickers("tickers" => []) }
-    assert_raises(Trading::Error) { Trading.tickers("tickers" => %w[A B C D E F]) }
-    assert_raises(Trading::Error) { Trading.tickers("tickers" => ["NVDA; rm -rf"]) }
+    assert_equal %w[NVDA ENEL.MI], Trading.tickers({ "tickers" => [" nvda", "ENEL.MI", "NVDA"] }, nil)
+    assert_raises(Trading::Error) { Trading.tickers({ "tickers" => [] }, nil) }
+    assert_raises(Trading::Error) { Trading.tickers({ "tickers" => %w[A B C D E F] }, nil) }
+    assert_raises(Trading::Error) { Trading.tickers({ "tickers" => ["NVDA; rm -rf"] }, nil) }
+  end
+
+  def test_env_list_wins_over_config
+    assert_equal %w[TSLA ENEL.MI], Trading.tickers({ "tickers" => ["NVDA"] }, "tsla, ENEL.MI")
+    assert_equal %w[NVDA], Trading.tickers({ "tickers" => ["NVDA"] }, " ")
   end
 
   def test_decisions_become_italian_labels
@@ -46,7 +51,7 @@ class TradingTest < Minitest::Test
       "AAPL" => "analisi non conclusa entro 30 minuti"
     )
     path, reports = Trading.run(now: NOW, config: { "tickers" => %w[NVDA AAPL], "debate_rounds" => 2 },
-                                runner: runner, model: "prov/veloce", deep_model: nil)
+                                runner: runner, model: "prov/veloce", deep_model: nil, override: nil)
 
     assert_equal "2026-10-29", calls.first[:date]
     assert_equal "prov/veloce", calls.first[:deep_model]

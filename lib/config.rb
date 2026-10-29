@@ -31,6 +31,7 @@ module Config
   TRADING_FILE  = File.expand_path("../config/trading.yml", __dir__)
   TRADING_MODEL = ENV["JARVIS_TRADING_MODEL"]                       # obbligatorio, es. provider/modello
   TRADING_DEEP_MODEL = ENV["JARVIS_TRADING_DEEP_MODEL"] || TRADING_MODEL # per i ruoli che decidono
+  TRADING_TICKERS = ENV["JARVIS_TRADING_TICKERS"] # es. "NVDA,ENEL.MI": se c'è, vince su config/trading.yml
 
   # Bot Telegram di Jarvis: risponde solo agli ID ammessi, in chat privata.
   TELEGRAM_TOKEN = ENV["JARVIS_TELEGRAM_TOKEN"]

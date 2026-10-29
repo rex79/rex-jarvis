@@ -2,6 +2,8 @@
 # Ogni titolo richiede decine di chiamate al modello su OpenRouter: tieni la lista corta
 # (Jarvis ne accetta al massimo 5). Usa i ticker di Yahoo Finance (es. ENEL.MI per Milano).
 # Jarvis suggerisce soltanto: nessun ordine, nessuna chiave di broker.
+# I tuoi titoli mettili in ~/.jarvis_env, che vince su questa lista:
+#   JARVIS_TRADING_TICKERS=NVDA,ENEL.MI
 
 tickers:
   - NVDA
