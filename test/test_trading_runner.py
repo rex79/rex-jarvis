@@ -17,6 +17,8 @@ class RunnerTest(unittest.TestCase):
         self.assertEqual("p/fast", config["deep_think_llm"])
         self.assertEqual(2, config["max_debate_rounds"])
         self.assertEqual("Italian", config["output_language"])
+        self.assertEqual(runner.DEFAULT_MAX_TOKENS, config["max_tokens"])
+        self.assertEqual(2048, runner.build_config(self.BASE, {"quick_model": "p", "max_tokens": 2048})["max_tokens"])
         self.assertEqual("English", self.BASE["output_language"])  # l'originale non cambia
 
     def test_long_texts_are_clipped(self):

@@ -51,7 +51,8 @@ module Trading
     reports = tickers(config).map do |ticker|
       data = runner.call(
         ticker: ticker, date: now.to_date.iso8601, quick_model: model, deep_model: deep_model || model,
-        debate_rounds: Integer(config.fetch("debate_rounds", 1)), language: config.fetch("language", "Italian"),
+        debate_rounds: Integer(config.fetch("debate_rounds", 1)), max_tokens: Integer(config.fetch("max_tokens", 8192)),
+        language: config.fetch("language", "Italian"),
         results_dir: results_dir
       )
       Report.new(ticker: ticker, decision: action(data["decision"]), summary: data["summary"].to_s, plan: data["plan"].to_s)

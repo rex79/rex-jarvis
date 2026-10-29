@@ -12,5 +12,9 @@ tickers:
 # Più giri = analisi più ragionata, ma costo e tempo crescono.
 debate_rounds: 1
 
+# Tetto di token per ogni risposta del modello. Senza tetto OpenRouter riserva il credito per
+# l'output massimo del modello e può rifiutare la richiesta anche se ne useresti poco.
+max_tokens: 8192
+
 # Lingua dei testi prodotti dagli agenti.
 language: Italian

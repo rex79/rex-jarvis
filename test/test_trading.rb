@@ -51,6 +51,7 @@ class TradingTest < Minitest::Test
     assert_equal "2026-10-29", calls.first[:date]
     assert_equal "prov/veloce", calls.first[:deep_model]
     assert_equal 2, calls.first[:debate_rounds]
+    assert_equal 8192, calls.first[:max_tokens]
     assert_equal ["ACQUISTA", nil], reports.map(&:decision)
     note = File.read(path, encoding: "UTF-8")
     assert_includes note, "# Analisi titoli — 29 ottobre 2026"

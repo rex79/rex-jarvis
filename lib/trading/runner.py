@@ -2,7 +2,7 @@
 
 Lanciato da lib/trading.rb con l'interprete di .venv-trading (bin/setup-trading):
   stdin:  {"ticker": "NVDA", "date": "2026-10-29", "quick_model": "...", "deep_model": "...",
-           "debate_rounds": 1, "language": "Italian", "results_dir": "..."}
+           "debate_rounds": 1, "max_tokens": 8192, "language": "Italian", "results_dir": "..."}
   stdout: ultima riga {"ticker", "decision", "summary", "plan"} oppure {"error", "code"}
 
 Solo analisi: nessuna chiave di broker, nessun ordine. La chiave OpenRouter arriva
@@ -15,6 +15,7 @@ import sys
 SUMMARY_KEY = "final_trade_decision"
 PLAN_KEY = "trader_investment_plan"
 MAX_TEXT = 6000
+DEFAULT_MAX_TOKENS = 8192
 
 
 def build_config(base, request):
@@ -26,6 +27,9 @@ def build_config(base, request):
     rounds = int(request.get("debate_rounds", 1))
     config["max_debate_rounds"] = rounds
     config["max_risk_discuss_rounds"] = rounds
+    # Senza tetto OpenRouter riserva il credito per l'output massimo del modello (64k token)
+    # e rifiuta la richiesta con 402 se il credito non basta.
+    config["max_tokens"] = int(request.get("max_tokens") or DEFAULT_MAX_TOKENS)
     if request.get("results_dir"):
         config["results_dir"] = request["results_dir"]
     # Il nome della chiave della lingua è cambiato tra le versioni: si imposta quella che esiste.
