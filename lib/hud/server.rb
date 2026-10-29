@@ -66,6 +66,7 @@ class HudServer
     when ["GET", "/api/status"]
       api(headers) { @status.snapshot.merge(copilot_active: copilot_active?, trading_job: @trading.state) }
     when ["POST", "/api/trading"] then api(headers, post: true) { @trading.start }
+    when ["GET", "/api/trading/note"] then api(headers) { Trading.latest_note || { name: nil, text: "" } }
     when ["POST", "/api/ask"] then api(headers, post: true) { ask(parse(body)["text"]) }
     when ["POST", "/api/music"] then api(headers, post: true) { music(parse(body)) }
     else Response.new(404, "text/plain", "non trovato")
