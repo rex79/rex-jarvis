@@ -1,0 +1,16 @@
+# Analisi giornaliera dei titoli con TradingAgents: ruby jarvis.rb --trading
+# Ogni titolo richiede decine di chiamate al modello su OpenRouter: tieni la lista corta
+# (Jarvis ne accetta al massimo 5). Usa i ticker di Yahoo Finance (es. ENEL.MI per Milano).
+# Jarvis suggerisce soltanto: nessun ordine, nessuna chiave di broker.
+
+tickers:
+  - NVDA
+  - AAPL
+  - SPY
+
+# Giri di discussione tra ricercatori (toro/orso) e tra gestori del rischio.
+# Più giri = analisi più ragionata, ma costo e tempo crescono.
+debate_rounds: 1
+
+# Lingua dei testi prodotti dagli agenti.
+language: Italian

@@ -26,4 +26,13 @@ module Config
   SITE_DIR      = File.expand_path(ENV.fetch("JARVIS_SITE_DIR", "~/jarvis-site"))
   SOURCES_FILE  = File.expand_path("../config/sources.yml", __dir__)
   SIGNALS_FILE  = File.expand_path("../config/signals.yml", __dir__)
+
+  # TradingAgents (contesto personale, Mac mini) via OpenRouter: solo dati di mercato pubblici.
+  TRADING_FILE  = File.expand_path("../config/trading.yml", __dir__)
+  TRADING_MODEL = ENV["JARVIS_TRADING_MODEL"]                       # obbligatorio, es. provider/modello
+  TRADING_DEEP_MODEL = ENV["JARVIS_TRADING_DEEP_MODEL"] || TRADING_MODEL # per i ruoli che decidono
+
+  # Bot Telegram di Jarvis: risponde solo agli ID ammessi, in chat privata.
+  TELEGRAM_TOKEN = ENV["JARVIS_TELEGRAM_TOKEN"]
+  TELEGRAM_ALLOWED = ENV.fetch("JARVIS_TELEGRAM_ALLOWED_USERS", "").split(/[\s,]+/).reject(&:empty?)
 end

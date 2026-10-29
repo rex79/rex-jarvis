@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Prepara TradingAgents (github.com/TauricResearch/TradingAgents) in un ambiente Python isolato:
+# sorgenti in ~/.jarvis/TradingAgents, interprete in .venv-trading del repo.
+# JARVIS_TRADING_REF sceglie il tag o il commit (default: main); il commit installato viene stampato.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+REF="${JARVIS_TRADING_REF:-main}"
+SRC="$HOME/.jarvis/TradingAgents"
+PY="$(command -v python3.13 || command -v python3.12 || command -v python3.11 || true)"
+[[ -n "$PY" ]] || { echo "❌ serve Python 3.11 o successivo (sudo apt install python3.12-venv)"; exit 1; }
+command -v git >/dev/null || { echo "❌ git non trovato"; exit 1; }
+
+if [[ -d "$SRC/.git" ]]; then
+  git -C "$SRC" fetch -q --tags origin
+else
+  mkdir -p "$(dirname "$SRC")"
+  git clone -q https://github.com/TauricResearch/TradingAgents.git "$SRC"
+fi
+git -C "$SRC" checkout -q "$REF"
+[[ "$REF" == "main" ]] && git -C "$SRC" pull -q --ff-only origin main
+
+[[ -x .venv-trading/bin/python ]] || "$PY" -m venv .venv-trading
+.venv-trading/bin/pip install -q --upgrade pip
+.venv-trading/bin/pip install -q "$SRC"
+echo "✅ TradingAgents installato in .venv-trading (commit $(git -C "$SRC" rev-parse --short HEAD))"

@@ -181,6 +181,76 @@ La candela giornaliera di Coinbase chiude alle 00:00 UTC; lancialo ogni mattina 
 La dashboard legge i segnali della macchina su cui gira: sul Mac di lavoro basta lanciare lì lo stesso
 comando (sono solo prezzi pubblici).
 
+## Analisi titoli (TradingAgents)
+Ogni mattina Jarvis fa analizzare i titoli di `config/trading.yml` da
+[TradingAgents](https://github.com/TauricResearch/TradingAgents): più agenti AI (analisti di fondamentali,
+notizie, sentiment e tecnica, ricercatori toro e orso, trader, gestione del rischio) discutono ogni titolo
+e arrivano a una valutazione (ACQUISTA, AUMENTA, MANTIENI, RIDUCI, VENDI). **Non manda ordini e non ha
+chiavi di broker**: è ricerca automatica, non un consiglio di investimento, e i modelli possono sbagliare.
+
+Va sul Mac mini, nel contesto personale: al modello su OpenRouter arrivano solo ticker e dati di mercato
+pubblici (Yahoo Finance, SEC EDGAR, FRED), mai note o dati di lavoro.
+
+```bash
+bin/setup-trading            # scarica TradingAgents in ~/.jarvis/TradingAgents e lo installa in .venv-trading
+ruby jarvis.rb --trading     # analizza i titoli e scrive la nota
+```
+In `~/.jarvis_env` (la chiave `OPENROUTER_API_KEY` è quella del digest):
+```
+JARVIS_TRADING_MODEL=provider/modello        # economico e bravo con gli strumenti (tool calling)
+JARVIS_TRADING_DEEP_MODEL=provider/modello   # opzionale: per i ruoli che decidono, default il precedente
+SEC_EDGAR_USER_AGENT="Nome Cognome email"   # opzionale, consigliato da TradingAgents per i dati SEC
+```
+- **Costi:** ogni titolo richiede decine di chiamate al modello; Jarvis accetta al massimo 5 titoli e un
+  giro di discussione di default (`debate_rounds`). Controlla la spesa su openrouter.ai dopo i primi giorni.
+- **Versione:** `JARVIS_TRADING_REF=v0.x.y bin/setup-trading` installa un tag preciso; lo script stampa il
+  commit installato. Rilancialo per aggiornare.
+- **Dove lo trovi:** `~/brain/trading/AAAA-MM-GG.md` (indicizzata), `~/brain/trading/latest.json` per il
+  bot, e i report completi degli agenti in `~/.jarvis/trading`.
+
+La borsa americana chiude alle 22 italiane; lancialo ogni mattina con cron:
+```
+30 6 * * 1-5 cd ~/jarvis && ruby jarvis.rb --trading >> ~/jarvis-trading.log 2>&1
+```
+
+### Bot Telegram di Jarvis
+Un bot dedicato, separato da Hermes, che **legge soltanto** i report già pronti: non lancia analisi,
+non chiama modelli e non esegue comandi. Risponde solo agli ID ammessi e solo in chat privata.
+
+| Comando | Risposta |
+|---|---|
+| `/trading` | le valutazioni dell'ultima analisi |
+| `/trading NVDA` | la decisione finale motivata per un titolo |
+| `/segnali` | gli ultimi segnali crypto |
+
+1. Su Telegram, con @BotFather: `/newbot`, poi `/setjoingroups` → Disable.
+2. In `~/.jarvis_env`:
+   ```
+   JARVIS_TELEGRAM_TOKEN=...            # il token di @BotFather, mai in chat o nel repo
+   JARVIS_TELEGRAM_ALLOWED_USERS=123456 # il tuo ID numerico (lo stesso dato a Hermes)
+   ```
+3. Prova con `ruby jarvis.rb --telegram`, poi rendilo un servizio in
+   `~/.config/systemd/user/jarvis-telegram.service`:
+   ```ini
+   [Unit]
+   Description=Jarvis Telegram bot
+   After=network-online.target
+
+   [Service]
+   WorkingDirectory=%h/jarvis
+   ExecStart=/usr/bin/env ruby jarvis.rb --telegram
+   Restart=on-failure
+   RestartSec=30
+
+   [Install]
+   WantedBy=default.target
+   ```
+   ```bash
+   systemctl --user daemon-reload && systemctl --user enable --now jarvis-telegram
+   journalctl --user -u jarvis-telegram -f   # log: un ID non ammesso compare qui
+   ```
+Il bot usa il long polling verso Telegram: nessuna porta da aprire sul Mac mini.
+
 ## Installazione su una nuova macchina
 ```bash
 git clone git@github.com:rex79/rex-jarvis.git && cd rex-jarvis
