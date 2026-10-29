@@ -33,9 +33,12 @@ module Trading
   # Report completi degli agenti: fuori da ~/brain per non gonfiare l'indice delle note.
   def self.results_dir = File.expand_path("~/.jarvis/trading")
 
-  def self.tickers(config)
-    list = Array(config["tickers"]).map { |t| t.to_s.strip.upcase }.reject(&:empty?).uniq
-    raise Error, "nessun titolo in config/trading.yml" if list.empty?
+  # La lista di ~/.jarvis_env (JARVIS_TRADING_TICKERS) vince su quella del repo: ogni macchina
+  # tiene i suoi titoli e git pull non si scontra con le modifiche locali.
+  def self.tickers(config, override = Config::TRADING_TICKERS)
+    source = override.to_s.strip.empty? ? Array(config["tickers"]) : override.split(/[\s,;]+/)
+    list = source.map { |t| t.to_s.strip.upcase }.reject(&:empty?).uniq
+    raise Error, "nessun titolo: imposta JARVIS_TRADING_TICKERS o config/trading.yml" if list.empty?
     raise Error, "troppi titoli (#{list.size}): il massimo è #{MAX_TICKERS} per contenere i costi" if list.size > MAX_TICKERS
 
     bad = list.grep_v(TICKER)
@@ -45,10 +48,10 @@ module Trading
   end
 
   def self.run(now: Time.now, config: YAML.load_file(Config::TRADING_FILE), runner: method(:analyze),
-               model: Config::TRADING_MODEL, deep_model: Config::TRADING_DEEP_MODEL)
+               model: Config::TRADING_MODEL, deep_model: Config::TRADING_DEEP_MODEL, override: Config::TRADING_TICKERS)
     raise Error, "imposta JARVIS_TRADING_MODEL (es. 'provider/modello', vedi openrouter.ai/models)" if model.to_s.empty?
 
-    reports = tickers(config).map do |ticker|
+    reports = tickers(config, override).map do |ticker|
       data = runner.call(
         ticker: ticker, date: now.to_date.iso8601, quick_model: model, deep_model: deep_model || model,
         debate_rounds: Integer(config.fetch("debate_rounds", 1)), max_tokens: Integer(config.fetch("max_tokens", 8192)),
