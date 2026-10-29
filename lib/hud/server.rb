@@ -2,6 +2,7 @@ require "socket"
 require "json"
 require "securerandom"
 require_relative "status"
+require_relative "trading_job"
 require_relative "../tools/music"
 require_relative "../tools/copilot"
 
@@ -24,8 +25,10 @@ class HudServer
 
   attr_reader :token, :port
 
-  def initialize(port: 7777, dispatcher: nil, status: HudStatus.new, music: Music, token: SecureRandom.hex(24))
+  def initialize(port: 7777, dispatcher: nil, status: HudStatus.new, music: Music, token: SecureRandom.hex(24),
+                 trading: TradingJob.new)
     @port = port
+    @trading = trading
     @dispatcher = dispatcher
     @status = status
     @music = music
@@ -36,6 +39,7 @@ class HudServer
   def start
     $stdout.sync = true
     server = TCPServer.new("127.0.0.1", @port)
+    @trading.sync_later
     puts "🤖 Jarvis HUD su http://localhost:#{@port} (solo questo computer). Ctrl+C per fermarlo."
     loop do
       Thread.new(server.accept) { |client| serve(client) }
@@ -59,7 +63,9 @@ class HudServer
     case [method, path]
     when ["GET", "/"] then page
     when ["GET", "/app.css"], ["GET", "/app.js"] then asset(path)
-    when ["GET", "/api/status"] then api(headers) { @status.snapshot.merge(copilot_active: copilot_active?) }
+    when ["GET", "/api/status"]
+      api(headers) { @status.snapshot.merge(copilot_active: copilot_active?, trading_job: @trading.state) }
+    when ["POST", "/api/trading"] then api(headers, post: true) { @trading.start }
     when ["POST", "/api/ask"] then api(headers, post: true) { ask(parse(body)["text"]) }
     when ["POST", "/api/music"] then api(headers, post: true) { music(parse(body)) }
     else Response.new(404, "text/plain", "non trovato")

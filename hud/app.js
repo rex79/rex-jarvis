@@ -69,6 +69,67 @@ function render(s) {
 
   renderDigest(s.digest || {});
   renderSignals(s.signals);
+  renderTrading(s.trading, s.trading_job || {});
+}
+
+const dayLabel = (iso) => new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
+const clock = (seconds) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+const DECISION_CLASS = { ACQUISTA: 'up', AUMENTA: 'up', MANTIENI: 'hold', RIDUCI: 'down', VENDI: 'down' };
+let tradingTimer = null;
+
+function renderTrading(tr, job) {
+  setText('trading-date', tr && tr.date ? `· ${dayLabel(tr.date)}` : '');
+  const button = $('trading-run');
+  button.disabled = !!job.running || !job.configured;
+  button.title = job.configured ? 'Lancia TradingAgents sul Mac mini' : 'Imposta JARVIS_TRADING_SSH e la chiave SSH';
+
+  clearInterval(tradingTimer);
+  const state = $('trading-state');
+  state.className = 'small' + (job.error ? ' err' : '');
+  if (job.running) {
+    const started = new Date(job.started_at);
+    const update = () => { state.textContent = `In corso sul Mac mini · ${clock(Math.max(0, Math.round((Date.now() - started) / 1000)))}`; };
+    update();
+    tradingTimer = setInterval(update, 1000);
+  } else if (job.error) {
+    state.textContent = `Errore: ${job.error}`;
+  } else if (job.finished_at) {
+    state.textContent = `Aggiornata alle ${new Date(job.finished_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`;
+  } else {
+    state.textContent = job.configured ? 'Pronta' : 'Mac mini non configurato';
+  }
+
+  const list = $('trading');
+  const items = (tr && tr.tickers) || [];
+  if (!items.length) {
+    const li = document.createElement('li');
+    li.className = 'dim';
+    li.textContent = tr && tr.error ? 'Analisi non disponibile.' : 'Nessuna analisi: premi Aggiorna.';
+    list.replaceChildren(li);
+    return;
+  }
+  list.replaceChildren(...items.map((it) => {
+    const li = document.createElement('li');
+    const head = document.createElement('div');
+    head.className = 'metric';
+    const name = document.createElement('span');
+    name.textContent = it.ticker;
+    const action = document.createElement('b');
+    action.className = `action ${it.error ? 'down' : (DECISION_CLASS[it.decision] || 'hold')}`;
+    action.textContent = it.error ? 'N/D' : it.decision;
+    head.append(name, action);
+    li.append(head);
+    const text = it.error || (it.summary || '').replace(/\*\*/g, ''); // grassetti Markdown come testo semplice
+    if (text) {
+      const p = document.createElement('p');
+      p.className = 'summary';
+      p.textContent = text;
+      p.title = 'Clic per espandere';
+      p.addEventListener('click', () => p.classList.toggle('open'));
+      li.append(p);
+    }
+    return li;
+  }));
 }
 
 const euro = (v) => (v == null ? '–' : v.toLocaleString('it-IT', { maximumFractionDigits: 2 }));
@@ -212,6 +273,18 @@ document.querySelectorAll('[data-music]').forEach((button) => {
       refresh();
     }
   });
+});
+
+$('trading-run').addEventListener('click', async () => {
+  $('trading-run').disabled = true;
+  try {
+    await api('/api/trading', {});
+    log('Analisi titoli', 'Avviata sul Mac mini: il riquadro si aggiorna quando ha finito.');
+  } catch (e) {
+    log('Analisi titoli', e.message, 'err');
+  } finally {
+    refresh();
+  }
 });
 
 document.addEventListener('keydown', (event) => {

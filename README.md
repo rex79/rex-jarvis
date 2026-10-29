@@ -209,6 +209,34 @@ SEC_EDGAR_USER_AGENT="Nome Cognome email"   # opzionale, consigliato da TradingA
 - **Dove lo trovi:** `~/brain/trading/AAAA-MM-GG.md` (indicizzata), `~/brain/trading/latest.json` per il
   bot, e i report completi degli agenti in `~/.jarvis/trading`.
 
+Dopo aver scritto la nota, `--trading` avvia l'indicizzazione delle note in background a bassa
+priorità (`nice`, log in `~/.jarvis/index.log`): il risultato è subito disponibile anche se Ollama è lento.
+
+### Lanciarla dalla dashboard
+Nella dashboard del Mac di lavoro il riquadro **Analisi titoli** ha il pulsante **Aggiorna**: la
+dashboard chiede al Mac mini di lanciare l'analisi via SSH e mostra il risultato appena la nota è scritta
+(il Mac mini indicizza dopo, con calma). Usa una chiave SSH dedicata che sul Mac mini può eseguire **solo**
+`jarvis.rb --trading-remote` (accetta i soli comandi `run` e `latest`): nessuna porta nuova, nessuna shell.
+
+1. Sul Mac di lavoro crea la chiave (senza passphrase: la dashboard gira in background); `cat` ne mostra la parte pubblica:
+   ```bash
+   ssh-keygen -t ed25519 -N "" -C jarvis-trading -f ~/.ssh/jarvis_trading && cat ~/.ssh/jarvis_trading.pub
+   ```
+2. Sempre dal Mac di lavoro, aggiungi la chiave pubblica agli `authorized_keys` del Mac mini con il
+   comando forzato (la riga la compone il Mac mini, con il suo percorso di Ruby):
+   ```bash
+   ssh rex@192.168.2.26 'read -r key; echo "command=\"cd $HOME/jarvis && $(command -v ruby) jarvis.rb --trading-remote\",from=\"192.168.2.0/24\",restrict $key" >> ~/.ssh/authorized_keys' < ~/.ssh/jarvis_trading.pub
+   ssh rex@192.168.2.26 tail -1 ~/.ssh/authorized_keys   # command="cd /home/rex/jarvis && … --trading-remote",… ssh-ed25519 …
+   ```
+   La chiave privata (`~/.ssh/jarvis_trading`, senza `.pub`) non lascia mai il Mac di lavoro.
+3. Sul Mac di lavoro, in `~/.jarvis_env`: `JARVIS_TRADING_SSH=rex@192.168.2.26`
+   (`JARVIS_TRADING_SSH_KEY` se la chiave non è in `~/.ssh/jarvis_trading`), poi `bin/hud-service install`.
+4. Prova: `ssh -i ~/.ssh/jarvis_trading rex@192.168.2.26 latest` risponde con l'ultima analisi in JSON;
+   qualsiasi altro comando viene rifiutato. La prima volta conferma l'impronta del Mac mini con `yes`:
+   la dashboard usa SSH in modalità non interattiva e senza questo passaggio non si collega.
+
+All'avvio la dashboard copia l'ultima analisi del Mac mini (anche quella del cron) in `~/brain/trading`.
+
 La borsa americana chiude alle 22 italiane; lancialo ogni mattina con cron:
 ```
 30 6 * * 1-5 cd ~/jarvis && ruby jarvis.rb --trading >> ~/jarvis-trading.log 2>&1

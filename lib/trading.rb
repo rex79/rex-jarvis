@@ -4,6 +4,7 @@ require "open3"
 require "fileutils"
 require "time"
 require "date"
+require "rbconfig"
 require_relative "config"
 
 # Analisi dei titoli con TradingAgents (framework multi-agente di TauricResearch) tramite
@@ -107,6 +108,45 @@ module Trading
         r.error ? { ticker: r.ticker, error: r.error } : { ticker: r.ticker, decision: r.decision, summary: r.summary }
       end
     }
+  end
+
+  # Un'analisi alla volta sulla stessa macchina (cron, terminale e dashboard possono sovrapporsi).
+  def self.exclusive(lock = File.expand_path("~/.jarvis/trading.lock"))
+    FileUtils.mkdir_p(File.dirname(lock))
+    File.open(lock, File::RDWR | File::CREAT, 0o600) do |f|
+      raise Error, "un'analisi è già in corso su questa macchina" unless f.flock(File::LOCK_EX | File::LOCK_NB)
+
+      yield
+    end
+  end
+
+  # L'indice delle note (embedding con Ollama) è lento sul Mac mini: parte dopo, in background e a
+  # bassa priorità, così il risultato è subito disponibile. Log in ~/.jarvis/index.log.
+  def self.index_later(log = File.expand_path("~/.jarvis/index.log"))
+    FileUtils.mkdir_p(File.dirname(log))
+    command = [RbConfig.ruby, File.join(ROOT, "jarvis.rb"), "--index"]
+    command = ["nice", "-n", "19", *command] if system("command -v nice >/dev/null 2>&1")
+    pid = Process.spawn(*command, chdir: ROOT, in: File::NULL, out: [log, "a"], err: [log, "a"], pgroup: true)
+    Process.detach(pid)
+    pid
+  end
+
+  # Comando eseguito sul Mac mini dalla chiave SSH dedicata della dashboard (forced command):
+  # "run" lancia l'analisi, "latest" restituisce l'ultima. Ultima riga: JSON con latest e nota.
+  def self.remote(command, run: -> { exclusive { Trading.run } }, index: method(:index_later))
+    case command.to_s.strip
+    when "run"
+      run.call
+      index.call
+    when "latest" then nil
+    else raise Error, "comando non consentito"
+    end
+    { latest: latest, note: latest_note }
+  end
+
+  def self.latest_note
+    file = Dir.glob(File.join(dir, "*.md")).max
+    file && { name: File.basename(file), text: File.read(file, encoding: "UTF-8") }
   end
 
   def self.latest(path = File.join(dir, "latest.json"))

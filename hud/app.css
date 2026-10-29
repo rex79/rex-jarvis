@@ -116,11 +116,17 @@ button:disabled { opacity: .4; cursor: wait; }
 
 .digest { gap: 14px; }
 .digest .title { display: block; font-size: 13px; line-height: 1.4; }
-.digest .summary {
+.digest .summary, .trading .summary {
   margin: 4px 0 0; font-size: 12px; line-height: 1.5; color: var(--dim); cursor: pointer;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
-.digest .summary.open { display: block; color: var(--text); }
+.digest .summary.open, .trading .summary.open { display: block; color: var(--text); white-space: pre-wrap; }
+.trading .action { letter-spacing: .12em; }
+.trading .action.up { color: var(--cyan); text-shadow: 0 0 8px rgba(94,214,255,.6); }
+.trading .action.hold { color: var(--dim); }
+.trading .action.down { color: var(--red); }
+#trading-state { color: var(--dim); align-self: center; }
+#trading-state.err { color: var(--red); }
 .digest li.low { opacity: .55; }
 .note { margin: 0 0 8px; font-size: 11px; color: var(--amber); }
 .signals { gap: 10px; }
