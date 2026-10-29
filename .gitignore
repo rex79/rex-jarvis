@@ -12,3 +12,6 @@
 .venv/
 __pycache__/
 *.pyc
+
+# Ambiente Python di TradingAgents (bin/setup-trading)
+.venv-trading/

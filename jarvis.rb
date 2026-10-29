@@ -63,6 +63,35 @@ if ARGV.include?("--signals")
   exit
 end
 
+if ARGV.include?("--trading")
+  require_relative "lib/trading"
+  begin
+    path, reports = Trading.run
+  rescue Trading::Error, ArgumentError => e
+    abort "❌ #{e.message}"
+  end
+  reports.each { |r| puts r.error ? "#{r.ticker}: non disponibile (#{r.error})" : "#{r.ticker}: #{r.decision}" }
+  puts "Analisi scritta in #{path}"
+  begin
+    puts Notes.build_index # rende l'analisi ricercabile da search_notes
+  rescue StandardError => e
+    warn "⚠️  indicizzazione fallita (l'analisi è comunque salvata): #{e.message}"
+  end
+  exit
+end
+
+if ARGV.include?("--telegram")
+  require_relative "lib/telegram_bot"
+  begin
+    TelegramBot.new.run
+  rescue TelegramBot::Error => e
+    abort "❌ #{e.message}"
+  rescue Interrupt
+    puts "\nBot Telegram fermato."
+  end
+  exit
+end
+
 if ARGV.include?("--copilot-login") || ARGV.include?("--copilot-status")
   require_relative "lib/tools/copilot"
   begin
