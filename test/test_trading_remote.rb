@@ -124,4 +124,17 @@ class TradingJobTest < Minitest::Test
     remote.gate << :go
     job.wait
   end
+
+  def test_full_note_endpoint
+    server = HudServer.new(port: 7777, token: "t" * 48, trading: TradingJob.new(remote: FakeRemote.new),
+                           status: Struct.new(:x) { def snapshot = {} }.new(nil))
+    ok = { "host" => "localhost:7777", "x-jarvis-token" => "t" * 48 }
+    FileUtils.mkdir_p(Trading.dir)
+    File.write(File.join(Trading.dir, "2026-10-28.md"), "# vecchia")
+    File.write(File.join(Trading.dir, "2026-10-29.md"), "# Analisi\n\n## NVDA: AUMENTA")
+    assert_equal 403, server.route("GET", "/api/trading/note", ok.merge("x-jarvis-token" => "x"), "").status
+    note = JSON.parse(server.route("GET", "/api/trading/note", ok, "").body)
+    assert_equal "2026-10-29.md", note["name"]
+    assert_includes note["text"], "NVDA: AUMENTA"
+  end
 end

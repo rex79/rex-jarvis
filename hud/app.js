@@ -287,8 +287,59 @@ $('trading-run').addEventListener('click', async () => {
   }
 });
 
+// Nota completa dell'ultima analisi: Markdown minimo reso con elementi e textContent, mai come HTML.
+function renderNote(text) {
+  const blocks = [];
+  let list = null;
+  text.split('\n').forEach((raw) => {
+    const line = raw.replace(/\*\*/g, '').trimEnd();
+    const heading = line.match(/^(#{1,3})\s+(.*)$/);
+    if (!line.trim()) { list = null; return; }
+    let el;
+    if (heading) {
+      el = document.createElement(`h${heading[1].length + 2}`);
+      el.textContent = heading[2];
+      list = null;
+    } else if (/^\s*[-*]\s+/.test(line)) {
+      if (!list) { list = document.createElement('ul'); blocks.push(list); }
+      const li = document.createElement('li');
+      li.textContent = line.replace(/^\s*[-*]\s+/, '');
+      list.append(li);
+      return;
+    } else {
+      el = document.createElement(line.startsWith('>') ? 'blockquote' : 'p');
+      el.textContent = line.replace(/^>\s?/, '');
+      list = null;
+    }
+    blocks.push(el);
+  });
+  return blocks;
+}
+
+$('trading-read').addEventListener('click', async () => {
+  try {
+    const note = await api('/api/trading/note');
+    const body = $('trading-note');
+    if (note.text) {
+      body.replaceChildren(...renderNote(note.text));
+    } else {
+      const p = document.createElement('p');
+      p.textContent = 'Nessuna analisi ancora: premi Aggiorna.';
+      body.replaceChildren(p);
+    }
+    $('trading-dialog').showModal();
+    body.scrollTop = 0;
+  } catch (e) {
+    log('Analisi titoli', e.message, 'err');
+  }
+});
+$('trading-close').addEventListener('click', () => $('trading-dialog').close());
+$('trading-dialog').addEventListener('click', (event) => {
+  if (event.target === $('trading-dialog')) $('trading-dialog').close(); // clic fuori dal riquadro
+});
+
 document.addEventListener('keydown', (event) => {
-  if (event.key === '/' && document.activeElement !== $('command')) {
+  if (event.key === '/' && document.activeElement !== $('command') && !$('trading-dialog').open) {
     event.preventDefault();
     $('command').focus();
   }
