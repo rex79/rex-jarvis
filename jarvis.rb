@@ -85,6 +85,10 @@ if ARGV.include?("--trading-remote")
   rescue Trading::Error, ArgumentError => e
     puts JSON.generate(error: e.message)
     exit 1
+  rescue StandardError => e # anche gli errori imprevisti arrivano leggibili alla dashboard
+    puts JSON.generate(error: "#{e.class}: #{utf8(e.message)[0, 300]}")
+    warn e.full_message(highlight: false)
+    exit 1
   end
   exit
 end

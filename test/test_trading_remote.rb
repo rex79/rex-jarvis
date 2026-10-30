@@ -40,6 +40,13 @@ class TradingRemoteTest < Minitest::Test
     assert_equal ["latest.json"], Dir.children(Trading.dir)
   end
 
+  def test_failure_tells_network_from_remote_errors
+    assert_equal "Mac mini non raggiungibile: No route to host",
+                 TradingRemote.failure(255, "ssh: connect\nNo route to host\n")
+    message = TradingRemote.failure(1, "lib/trading.rb:9: boom (RuntimeError)\n\tfrom jarvis.rb:84:in '<main>'\n")
+    assert_equal "errore sul Mac mini: lib/trading.rb:9: boom (RuntimeError)", message
+  end
+
   def test_remote_errors_are_reported
     err = assert_raises(TradingRemote::Error) { TradingRemote.run(runner: ->(_) { '{"error":"un\'analisi è già in corso"}' }) }
     assert_match(/già in corso/, err.message)
