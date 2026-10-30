@@ -20,8 +20,15 @@
 </header>
 
 <main class="layout">
+  <section id="home" class="home" data-view="casa" hidden>
+    <button class="tile" type="button" data-go="titoli"><h2>Analisi titoli</h2><ul id="home-trading" class="tile-list"></ul></button>
+    <button class="tile" type="button" data-go="segnali"><h2>Segnali crypto</h2><ul id="home-signals" class="tile-list"></ul></button>
+    <button class="tile" type="button" data-go="notizie"><h2>Digest AI</h2><p id="home-digest"></p></button>
+    <button class="tile" type="button" data-go="sistema"><h2>Sistema</h2><p id="home-system"></p></button>
+    <button class="tile wide" type="button" data-go="jarvis"><h2>Chiedi a Jarvis</h2><p class="dim">Note personali e domande</p></button>
+  </section>
   <aside class="col">
-    <section class="panel">
+    <section class="panel" data-view="sistema">
       <h2>Sistema</h2>
       <div class="metric"><span>Carico CPU</span><b id="load">–</b></div>
       <div class="bar"><i id="load-bar"></i></div>
@@ -29,14 +36,14 @@
       <div class="metric"><span>Batteria</span><b id="battery">–</b></div>
       <div class="metric"><span>Disco libero</span><b id="disk">–</b></div>
     </section>
-    <section class="panel">
+    <section class="panel" data-view="sistema">
       <h2>Modelli locali</h2>
       <div class="metric"><span>Ollama</span><b id="ollama">–</b></div>
       <div class="metric"><span>Lavoro</span><b id="work-model">–</b></div>
       <div class="metric"><span>Personale</span><b id="personal-model">–</b></div>
       <ul id="loaded" class="list compact"></ul>
     </section>
-    <section class="panel grow">
+    <section class="panel grow" data-view="titoli">
       <h2>Analisi titoli <span id="trading-date" class="dim"></span></h2>
       <div class="metric"><span id="trading-state" class="small">–</span></div>
       <div class="actions">
@@ -47,7 +54,7 @@
     </section>
   </aside>
 
-  <section class="core">
+  <section class="core" data-view="jarvis">
     <div class="reactor" aria-hidden="true">
       <svg viewBox="0 0 400 400">
         <defs>
@@ -89,17 +96,33 @@
         <button data-music="next" aria-label="Brano successivo">⏭</button>
       </div>
     </section>
-    <section class="panel">
+    <section class="panel" data-view="segnali">
       <h2>Segnali crypto <span id="signals-date" class="dim"></span></h2>
       <ul id="signals" class="list signals"></ul>
     </section>
-    <section class="panel grow">
+    <section class="panel grow" data-view="notizie">
       <h2>Digest AI <span id="digest-date" class="dim"></span></h2>
       <p id="digest-note" class="note" hidden></p>
       <ul id="digest" class="list digest"></ul>
     </section>
   </aside>
 </main>
+<nav id="tabs" class="tabs" aria-label="Sezioni" hidden>
+  <button type="button" data-go="casa">Casa</button>
+  <button type="button" data-go="jarvis">Jarvis</button>
+  <button type="button" data-go="titoli">Titoli</button>
+  <button type="button" data-go="segnali">Segnali</button>
+  <button type="button" data-go="notizie">Digest</button>
+  <button type="button" data-go="sistema">Sistema</button>
+</nav>
+<div id="rest" class="rest" hidden>
+  <div id="rest-body" class="rest-body">
+    <div id="rest-time" class="rest-time">--:--</div>
+    <div id="rest-date" class="rest-date"></div>
+    <ul id="rest-trading" class="rest-list"></ul>
+    <p id="rest-status" class="rest-status" hidden></p>
+  </div>
+</div>
 <dialog id="trading-dialog" class="reader" aria-labelledby="trading-dialog-title">
   <header>
     <h2 id="trading-dialog-title">Analisi titoli</h2>

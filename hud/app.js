@@ -44,6 +44,12 @@ function tick() {
   const now = new Date();
   setText('time', now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
   setText('date', now.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }));
+  if (paired) {
+    setText('rest-time', now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }));
+    setText('rest-date', $('date').textContent);
+    if (now.getSeconds() === 0) shiftRest(); // lo schermo resta acceso: niente immagini sempre ferme
+    if (Date.now() - lastTouch > IDLE_MS && canRest()) rest();
+  }
 }
 
 function render(s) {
@@ -89,6 +95,7 @@ function render(s) {
   renderDigest(s.digest || {});
   renderSignals(s.signals);
   renderTrading(s.trading, s.trading_job || {});
+  if (paired) renderHome(s);
 }
 
 const dayLabel = (iso) => new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
@@ -234,8 +241,15 @@ async function refresh() {
   if (!token) return;
   try {
     render(await api('/api/status'));
+    if (paired) { $('rest-status').hidden = true; $('home-system').classList.remove('err'); }
   } catch (e) {
     setState('error', 'OFFLINE');
+    if (paired && token) {
+      setText('rest-status', 'Mac mini non raggiungibile');
+      $('rest-status').hidden = false;
+      setText('home-system', 'Mac mini non raggiungibile');
+      $('home-system').classList.add('err');
+    }
   }
 }
 
@@ -295,7 +309,19 @@ document.querySelectorAll('[data-music]').forEach((button) => {
   });
 });
 
+// Sul tablet il pulsante è a portata di tutti e ogni analisi costa credito: serve un secondo tocco.
+let tradingArmed = null;
+
 $('trading-run').addEventListener('click', async () => {
+  const button = $('trading-run');
+  if (paired && !tradingArmed) {
+    button.textContent = 'Conferma?';
+    tradingArmed = setTimeout(() => { tradingArmed = null; button.textContent = 'Aggiorna'; }, 4000);
+    return;
+  }
+  clearTimeout(tradingArmed);
+  tradingArmed = null;
+  button.textContent = 'Aggiorna';
   $('trading-run').disabled = true;
   try {
     await api('/api/trading', {});
@@ -364,6 +390,85 @@ document.addEventListener('keydown', (event) => {
     $('command').focus();
   }
 });
+
+// Tablet: una sezione alla volta, e schermata a riposo se nessuno lo tocca.
+const IDLE_MS = 3 * 60 * 1000;
+let lastTouch = Date.now();
+
+function setView(view) {
+  document.querySelectorAll('[data-view]').forEach((el) => el.classList.toggle('active', el.dataset.view === view));
+  document.querySelectorAll('#tabs [data-go]').forEach((el) => {
+    if (el.dataset.go === view) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
+  });
+  document.querySelector('.layout').scrollTop = 0;
+}
+
+function canRest() {
+  return $('rest').hidden && !document.querySelector('dialog[open]') && !$('command').value
+    && document.body.dataset.state !== 'thinking';
+}
+
+function rest() {
+  setView('casa');
+  shiftRest();
+  $('rest').hidden = false;
+  document.body.classList.add('resting');
+  if (document.activeElement) document.activeElement.blur();
+}
+
+function shiftRest() {
+  const offset = () => Math.round(Math.random() * 60 - 30);
+  $('rest-body').style.transform = `translate(${offset()}px, ${offset()}px)`;
+}
+
+function tileList(id, rows, empty) {
+  const items = rows.slice(0, 5).map(([name, value, kind]) => {
+    const li = document.createElement('li');
+    const label = document.createElement('span');
+    label.textContent = name;
+    const b = document.createElement('b');
+    b.className = `action ${kind || ''}`;
+    b.textContent = value;
+    li.append(label, b);
+    return li;
+  });
+  if (!items.length) {
+    const li = document.createElement('li');
+    li.className = 'dim';
+    li.textContent = empty;
+    items.push(li);
+  }
+  $(id).replaceChildren(...items);
+}
+
+function renderHome(s) {
+  const rows = ((s.trading && s.trading.tickers) || []).map((it) => (it.error
+    ? [it.ticker, 'N/D', 'down'] : [it.ticker, it.decision, DECISION_CLASS[it.decision] || 'hold']));
+  const job = s.trading_job || {};
+  const empty = job.running ? 'Analisi in corso…' : 'Nessuna analisi';
+  tileList('home-trading', rows, empty);
+  tileList('rest-trading', rows, empty);
+  tileList('home-signals', ((s.signals && s.signals.signals) || []).map((it) => (it.error
+    ? [it.product, 'N/D', 'error'] : [it.product, it.label, it.action])), 'Nessun segnale');
+  const items = (s.digest && s.digest.items) || [];
+  setText('home-digest', items.length ? `${s.digest.date || ''} · ${items.length === 1 ? '1 notizia' : `${items.length} notizie`}\n${items[0].title}` : 'Nessun digest');
+  const sys = s.system || {};
+  setText('home-system', [`Carico ${sys.load_percent ?? '–'}%`, `Disco ${sys.disk_free_gb ?? '–'} GB`,
+    `Ollama ${(s.ollama || {}).online ? 'online' : 'non raggiungibile'}`].join(' · '));
+}
+
+if (paired) {
+  document.body.dataset.mode = 'personal';
+  $('home').hidden = false;
+  $('tabs').hidden = false;
+  setView('casa');
+  document.querySelectorAll('[data-go]').forEach((el) => el.addEventListener('click', () => setView(el.dataset.go)));
+  ['pointerdown', 'keydown'].forEach((type) => document.addEventListener(type, () => { lastTouch = Date.now(); }));
+  $('rest').addEventListener('click', () => {
+    $('rest').hidden = true;
+    document.body.classList.remove('resting');
+  });
+}
 
 $('pair-dialog').addEventListener('cancel', (event) => event.preventDefault()); // senza abbinamento non c'è altro da fare
 $('pair-form').addEventListener('submit', async (event) => {
