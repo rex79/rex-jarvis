@@ -122,11 +122,23 @@ if ARGV.include?("--copilot-login") || ARGV.include?("--copilot-status")
   exit
 end
 
+if ARGV.include?("--hud-pair") || ARGV.include?("--hud-revoke")
+  require_relative "lib/hud/pairing"
+  if ARGV.include?("--hud-revoke")
+    puts "Abbinamenti rimossi: #{HudPairing.new.revoke_all}. Ogni dispositivo dovrà rifarlo."
+  else
+    puts "Codice per il tablet: #{HudPairing.new.start} (vale 10 minuti, una volta sola)"
+  end
+  exit
+end
+
 if ARGV.include?("--hud")
   require_relative "lib/hud/server"
   port = Integer(arg_value("--port") || 7777)
+  lan = ARGV.include?("--lan") # sulla rete di casa solo il contesto personale, qualunque cosa chieda il comando
   begin
-    HudServer.new(port: port, dispatcher: Dispatcher.new(forced: arg_value("--context"))).start
+    HudServer.new(port: port, dispatcher: Dispatcher.new(forced: lan ? "personal" : arg_value("--context")),
+                  **(lan ? HudServer.lan_options : {})).start
   rescue Interrupt
     puts "\nHUD fermato."
   end

@@ -1,6 +1,14 @@
 // Dashboard di Jarvis. Tutto il testo che arriva dal server (titoli del digest, risposte)
 // viene inserito come testo, mai come HTML. Ogni chiamata alle API porta il token della pagina.
-const token = document.querySelector('meta[name="jarvis-token"]').content;
+// Sulla rete di casa la pagina non contiene il token: il dispositivo lo ottiene abbinandosi e lo tiene qui.
+const pageToken = document.querySelector('meta[name="jarvis-token"]').content;
+const paired = !pageToken;
+const STORE = 'jarvis-device-token';
+const stored = {
+  get() { try { return localStorage.getItem(STORE) || ''; } catch { return ''; } },
+  set(value) { try { value ? localStorage.setItem(STORE, value) : localStorage.removeItem(STORE); } catch { /* resta in memoria */ } },
+};
+let token = pageToken || stored.get();
 const $ = (id) => document.getElementById(id);
 
 async function api(path, body) {
@@ -12,8 +20,15 @@ async function api(path, body) {
   }
   const res = await fetch(path, options);
   const data = await res.json().catch(() => ({}));
+  if (res.status === 403 && paired) showPairing(); // abbinamento revocato
   if (!res.ok) throw new Error(data.error || `errore ${res.status}`);
   return data;
+}
+
+function showPairing() {
+  token = '';
+  stored.set('');
+  if (!$('pair-dialog').open) $('pair-dialog').showModal();
 }
 
 function setCopilot(active) { $('copilot-badge').hidden = !active; }
@@ -36,7 +51,11 @@ function render(s) {
 
   const badge = $('privacy-badge');
   badge.className = 'badge ' + (s.privacy.local ? 'ok' : 'ko');
-  badge.textContent = s.privacy.local ? 'LAVORO · SOLO LOCALE' : 'ATTENZIONE · OLLAMA NON LOCALE';
+  const personal = s.mode === 'personal';
+  badge.textContent = personal ? 'PERSONALE' : (s.privacy.local ? 'LAVORO · SOLO LOCALE' : 'ATTENZIONE · OLLAMA NON LOCALE');
+  if (personal) badge.className = 'badge ok';
+  $('audio-panel').hidden = personal;
+  $('work-model').parentElement.hidden = personal;
 
   setCopilot(s.copilot_active);
 
@@ -212,6 +231,7 @@ function renderDigest(dg) {
 }
 
 async function refresh() {
+  if (!token) return;
   try {
     render(await api('/api/status'));
   } catch (e) {
@@ -345,8 +365,37 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
+$('pair-dialog').addEventListener('cancel', (event) => event.preventDefault()); // senza abbinamento non c'è altro da fare
+$('pair-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const error = $('pair-error');
+  error.hidden = true;
+  try {
+    const res = await fetch('/api/pair', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: $('pair-code').value }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `errore ${res.status}`);
+    token = data.token;
+    stored.set(token);
+    $('pair-code').value = '';
+    $('pair-dialog').close();
+    refresh();
+  } catch (e) {
+    error.textContent = e.message;
+    error.hidden = false;
+  }
+});
+
 tick();
 setInterval(tick, 1000);
 refresh();
 setInterval(refresh, 5000);
-$('command').focus();
+if (paired) {
+  if (!token) showPairing();
+  $('command').placeholder = 'Dimmi cosa fare…';
+} else {
+  $('command').focus(); // non sul tablet: aprirebbe la tastiera a ogni caricamento
+}
