@@ -375,6 +375,11 @@ ruby jarvis.rb --hud-revoke                             # tablet perso: rimuove 
 Sul tablet apri `http://192.168.2.26:7777` e inserisci il codice. Dopo un `git pull` che cambia il codice
 Ruby rilancia `bin/hud-service install`.
 
+- **Interfaccia per il tocco:** una sezione alla volta con pulsanti grandi (Casa, Jarvis, Titoli, Segnali,
+  Digest, Sistema). Dopo 3 minuti senza tocchi compare la schermata a riposo con ora e ultime valutazioni,
+  che si sposta di poco ogni minuto per non segnare lo schermo; un tocco la chiude. **Aggiorna** chiede un
+  secondo tocco perché ogni analisi costa credito. Tenere acceso lo schermo spetta al tablet (app kiosk o
+  impostazioni). Dopo un `git pull` che cambia solo HTML, CSS o JS basta ricaricare la pagina.
 - **Solo contesto personale:** i comandi non arrivano mai al contesto di lavoro né a Copilot e il pannello
   Audio è nascosto (i comandi musicali funzionano solo su macOS). L'analisi titoli gira direttamente qui, senza SSH.
 - **Accesso:** la pagina non contiene token. Ogni dispositivo ne ottiene uno suo con il codice (5 tentativi,
