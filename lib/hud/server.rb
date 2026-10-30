@@ -3,6 +3,7 @@ require "json"
 require "securerandom"
 require_relative "status"
 require_relative "trading_job"
+require_relative "pairing"
 require_relative "../tools/music"
 require_relative "../tools/copilot"
 
@@ -13,6 +14,8 @@ require_relative "../tools/copilot"
 #   - le API richiedono un token casuale generato a ogni avvio e inserito nella pagina;
 #   - le POST con un Origin diverso dal suo vengono rifiutate;
 #   - la Content Security Policy permette solo risorse servite da lui stesso.
+# Con --lan (Mac mini, tablet) ascolta sulla rete di casa e resta nel contesto personale: la pagina
+# non contiene più il token e ogni dispositivo si abbina con un codice monouso (vedi HudPairing).
 class HudServer
   ASSETS = File.expand_path("../../hud", __dir__)
   TYPES = { ".html" => "text/html; charset=utf-8", ".css" => "text/css; charset=utf-8",
@@ -26,8 +29,11 @@ class HudServer
   attr_reader :token, :port
 
   def initialize(port: 7777, dispatcher: nil, status: HudStatus.new, music: Music, token: SecureRandom.hex(24),
-                 trading: TradingJob.new)
+                 trading: TradingJob.new, bind: "127.0.0.1", hosts: %w[localhost 127.0.0.1], pairing: nil)
     @port = port
+    @bind = bind
+    @hosts = hosts.map(&:downcase)
+    @pairing = pairing
     @trading = trading
     @dispatcher = dispatcher
     @status = status
@@ -36,11 +42,21 @@ class HudServer
     @lock = Mutex.new # l'agente tiene una conversazione: un comando alla volta
   end
 
+  # Opzioni per la rete di casa: gli indirizzi privati e il nome di questa macchina sono gli unici
+  # Host accettati, più quelli di JARVIS_HUD_HOSTS (es. il nome Tailscale).
+  def self.lan_options
+    addresses = Socket.ip_address_list.select(&:ipv4_private?).map(&:ip_address)
+    name = Socket.gethostname.split(".").first
+    { bind: Config::HUD_BIND, hosts: ["localhost", "127.0.0.1", name, "#{name}.local", *addresses, *Config::HUD_HOSTS].uniq,
+      pairing: HudPairing.new, trading: TradingJob.new(remote: TradingLocal), status: HudStatus.new(personal: true) }
+  end
+
   def start
     $stdout.sync = true
-    server = TCPServer.new("127.0.0.1", @port)
+    server = TCPServer.new(@bind, @port)
     @trading.sync_later
-    puts "🤖 Jarvis HUD su http://localhost:#{@port} (solo questo computer). Ctrl+C per fermarlo."
+    where = @pairing ? "rete di casa, solo dispositivi abbinati" : "solo questo computer"
+    puts "🤖 Jarvis HUD su http://#{@pairing ? @hosts.last : 'localhost'}:#{@port} (#{where}). Ctrl+C per fermarlo."
     loop do
       Thread.new(server.accept) { |client| serve(client) }
     end
@@ -63,6 +79,7 @@ class HudServer
     case [method, path]
     when ["GET", "/"] then page
     when ["GET", "/app.css"], ["GET", "/app.js"] then asset(path)
+    when ["POST", "/api/pair"] then @pairing ? pair(headers, body) : Response.new(404, "text/plain", "non trovato")
     when ["GET", "/api/status"]
       api(headers) { @status.snapshot.merge(copilot_active: copilot_active?, trading_job: @trading.state) }
     when ["POST", "/api/trading"] then api(headers, post: true) { @trading.start }
@@ -76,11 +93,20 @@ class HudServer
   private
 
   def allowed_host?(host)
-    ["localhost:#{@port}", "127.0.0.1:#{@port}"].include?(host.to_s.downcase)
+    @hosts.map { |h| "#{h}:#{@port}" }.include?(host.to_s.downcase)
   end
 
   def allowed_origin?(origin)
-    origin.nil? || ["http://localhost:#{@port}", "http://127.0.0.1:#{@port}"].include?(origin.downcase)
+    origin.nil? || @hosts.map { |h| "http://#{h}:#{@port}" }.include?(origin.downcase)
+  end
+
+  # L'unica API senza token: il codice monouso è la prova di accesso, con tentativi limitati.
+  def pair(headers, body)
+    return Response.new(403, "application/json", '{"error":"origine non consentita"}') unless allowed_origin?(headers["origin"])
+
+    Response.new(200, "application/json", JSON.generate(token: @pairing.redeem(parse(body)["code"])))
+  rescue ArgumentError => e
+    Response.new(422, "application/json", JSON.generate(error: e.message))
   end
 
   def api(headers, post: false)
@@ -97,6 +123,8 @@ class HudServer
   end
 
   def valid_token?(given)
+    return @pairing.valid?(given) if @pairing
+
     !given.to_s.empty? && given.bytesize == @token.bytesize &&
       given.bytes.zip(@token.bytes).sum { |a, b| a ^ b }.zero? # confronto a tempo costante
   end
@@ -127,7 +155,7 @@ class HudServer
   end
 
   def page
-    html = File.read(File.join(ASSETS, "index.html"), encoding: "UTF-8").sub("{{TOKEN}}", @token)
+    html = File.read(File.join(ASSETS, "index.html"), encoding: "UTF-8").sub("{{TOKEN}}", @pairing ? "" : @token)
     Response.new(200, TYPES[".html"], html)
   end
 

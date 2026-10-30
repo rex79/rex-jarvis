@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Tiene la dashboard di Jarvis sempre attiva su macOS con un LaunchAgent: parte al login,
-# si riavvia se si ferma, scrive i log in ~/Library/Logs/jarvis-hud.log.
+# si riavvia se si ferma, scrive i log in ~/Library/Logs/jarvis-hud.log. Su Linux usa systemd.
 #   bin/hud-service install     installa e avvia (porta: JARVIS_HUD_PORT, default 7777)
 #   bin/hud-service uninstall   ferma e rimuove
 #   bin/hud-service status      stato del servizio e della dashboard
@@ -16,7 +16,65 @@ PORT="${JARVIS_HUD_PORT:-7777}"
 DOMAIN="gui/$(id -u)"
 REPO="$(pwd)"
 
-[[ "$(uname)" == "Darwin" ]] || { echo "Solo macOS (su Linux usa un servizio systemd utente)."; exit 1; }
+wait_for_hud() {
+  for _ in $(seq 1 20); do
+    curl -s -o /dev/null -m 1 "http://localhost:$PORT/" && return 0
+    sleep 0.5
+  done
+  return 1
+}
+
+# Linux (Mac mini): servizio systemd utente, sulla rete di casa e solo contesto personale.
+if [[ "$(uname)" == "Linux" ]]; then
+  UNIT="$HOME/.config/systemd/user/jarvis-hud.service"
+  case "${1:-}" in
+    install)
+      RUBY="$(command -v ruby)" || { echo "Ruby non trovato"; exit 1; }
+      mkdir -p "$(dirname "$UNIT")"
+      cat > "$UNIT" <<UNITEOF
+[Unit]
+Description=Jarvis HUD
+After=network-online.target
+
+[Service]
+WorkingDirectory=$REPO
+Environment=PATH=$(dirname "$RUBY"):$HOME/.rbenv/shims:/usr/local/bin:/usr/bin:/bin
+Environment=LANG=C.UTF-8
+ExecStart=$RUBY jarvis.rb --hud --lan --port $PORT
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+UNITEOF
+      systemctl --user daemon-reload
+      systemctl --user enable jarvis-hud >/dev/null
+      systemctl --user restart jarvis-hud
+      if wait_for_hud; then
+        echo "✅ Jarvis HUD attivo sulla porta $PORT. Abbina il tablet con: ruby jarvis.rb --hud-pair"
+      else
+        echo "⚠️  servizio installato ma la dashboard non risponde: bin/hud-service logs"; exit 1
+      fi
+      [[ "$(loginctl show-user "$USER" -p Linger --value 2>/dev/null)" == "yes" ]] ||
+        echo "⚠️  per farla partire anche senza login: sudo loginctl enable-linger $USER"
+      ;;
+    uninstall)
+      systemctl --user disable --now jarvis-hud 2>/dev/null || true
+      rm -f "$UNIT"
+      systemctl --user daemon-reload
+      echo "✅ Jarvis HUD rimosso"
+      ;;
+    status)
+      systemctl --user --no-pager status jarvis-hud | sed -n '1,4p' || true
+      if curl -s -o /dev/null -m 1 "http://localhost:$PORT/"; then echo "  dashboard: porta $PORT risponde"; else echo "  dashboard: non risponde"; fi
+      ;;
+    logs) journalctl --user -u jarvis-hud -n "${2:-40}" --no-pager ;;
+    *) echo "Uso: bin/hud-service install|uninstall|status|logs"; exit 1 ;;
+  esac
+  exit 0
+fi
+
+[[ "$(uname)" == "Darwin" ]] || { echo "Sistema non supportato."; exit 1; }
 
 xml() { sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' <<<"$1"; }
 
@@ -35,14 +93,6 @@ start_service() {
   launchctl bootstrap "$DOMAIN" "$PLIST" 2>/dev/null && return 0
   sleep 2 # un secondo tentativo copre i casi in cui launchd è ancora occupato
   launchctl bootstrap "$DOMAIN" "$PLIST"
-}
-
-wait_for_hud() {
-  for _ in $(seq 1 20); do
-    curl -s -o /dev/null -m 1 "http://localhost:$PORT/" && return 0
-    sleep 0.5
-  done
-  return 1
 }
 
 case "${1:-}" in

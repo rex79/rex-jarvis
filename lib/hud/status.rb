@@ -16,7 +16,8 @@ require_relative "digest_feed"
 class HudStatus
   def initialize(music: Music, ollama_url: Config::OLLAMA_URL, digest_dir: File.join(Config::BRAIN_DIR, "digest"),
                  feed: DigestFeed.new, signals_file: File.join(Signals.dir, "latest.json"),
-                 trading_file: File.join(Trading.dir, "latest.json"))
+                 trading_file: File.join(Trading.dir, "latest.json"), personal: false)
+    @personal = personal
     @feed = feed
     @trading_file = trading_file
     @signals_file = signals_file
@@ -28,10 +29,11 @@ class HudStatus
   def snapshot
     {
       host: Socket.gethostname.split(".").first,
+      mode: @personal ? "personal" : "full",
       system: safe { system_info },
       privacy: privacy,
       ollama: safe { ollama },
-      music: safe { @music.now_playing },
+      music: @personal ? nil : safe { @music.now_playing },
       digest: safe { digest },
       signals: safe { Signals.latest(@signals_file) },
       trading: safe { Trading.latest(@trading_file) }
@@ -39,6 +41,9 @@ class HudStatus
   end
 
   def privacy
+    # Sulla rete di casa non si mostra nulla del contesto di lavoro.
+    return { local: Privacy.local_url?(@ollama_url), personal_model: Config::MAIN_MODEL } if @personal
+
     {
       local: Privacy.local_url?(@ollama_url),
       work_model: Config::WORK_MODEL,

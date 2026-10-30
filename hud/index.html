@@ -77,7 +77,7 @@
   </section>
 
   <aside class="col">
-    <section class="panel">
+    <section id="audio-panel" class="panel">
       <h2>Audio</h2>
       <div id="track" class="track">–</div>
       <div id="artist" class="dim small"></div>
@@ -106,6 +106,15 @@
     <button id="trading-close" type="button" aria-label="Chiudi">Chiudi</button>
   </header>
   <article id="trading-note" class="note-text"></article>
+</dialog>
+<dialog id="pair-dialog" class="reader pair" aria-labelledby="pair-title">
+  <header><h2 id="pair-title">Abbina questo dispositivo</h2></header>
+  <form id="pair-form" autocomplete="off">
+    <p class="small">Sul Mac mini esegui <code>ruby jarvis.rb --hud-pair</code> e inserisci il codice.</p>
+    <input id="pair-code" maxlength="8" autocapitalize="characters" spellcheck="false" aria-label="Codice di abbinamento">
+    <button type="submit">Abbina</button>
+    <p id="pair-error" class="note" hidden></p>
+  </form>
 </dialog>
 <script src="/app.js"></script>
 </body>

@@ -98,6 +98,90 @@ class HudServerTest < Minitest::Test
   end
 end
 
+class HudLanTest < Minitest::Test
+  LAN = "192.168.2.26:7777".freeze
+
+  class FakeStatus
+    def snapshot = { host: "test", mode: "personal" }
+  end
+
+  def setup
+    @dir = Dir.mktmpdir
+    @pairing = HudPairing.new(file: File.join(@dir, "pairing.json"))
+    @server = HudServer.new(port: 7777, dispatcher: nil, status: FakeStatus.new, pairing: @pairing, bind: "0.0.0.0",
+                            hosts: %w[localhost 192.168.2.26], token: "t" * 48)
+  end
+
+  def teardown = FileUtils.remove_entry(@dir)
+
+  def headers(extra = {}) = { "host" => LAN, "origin" => "http://#{LAN}" }.merge(extra)
+
+  def pair(code, extra = {}) = @server.route("POST", "/api/pair", headers(extra), JSON.generate(code: code))
+
+  def test_page_has_no_token_and_foreign_hosts_stay_out
+    body = @server.route("GET", "/", headers, "").body
+    refute_includes body, "t" * 48
+    assert_includes body, 'name="jarvis-token" content=""'
+    assert_equal 403, @server.route("GET", "/", headers("host" => "evil.example:7777"), "").status
+  end
+
+  def test_pairing_gives_a_token_that_opens_the_api
+    assert_equal 403, @server.route("GET", "/api/status", headers("x-jarvis-token" => "t" * 48), "").status
+
+    r = pair(@pairing.start)
+    assert_equal 200, r.status
+    token = JSON.parse(r.body)["token"]
+    assert_equal 200, @server.route("GET", "/api/status", headers("x-jarvis-token" => token), "").status
+
+    @pairing.revoke_all
+    assert_equal 403, @server.route("GET", "/api/status", headers("x-jarvis-token" => token), "").status
+  end
+
+  def test_code_works_once_and_only_from_our_origin
+    code = @pairing.start
+    assert_equal 403, pair(code, "origin" => "https://evil.example").status
+    assert_equal 200, pair(code.downcase).status
+    assert_equal 422, pair(code).status
+  end
+
+  def test_code_expires_and_dies_after_too_many_wrong_attempts
+    code = @pairing.start(now: Time.now - HudPairing::CODE_TTL - 1)
+    assert_equal 422, pair(code).status
+
+    code = @pairing.start
+    HudPairing::MAX_ATTEMPTS.times { assert_equal 422, pair("SBAGLIATO").status }
+    assert_equal 422, pair(code).status
+  end
+
+  def test_only_digests_reach_the_file_with_private_permissions
+    code = @pairing.start
+    token = @pairing.redeem(code)
+    file = File.join(@dir, "pairing.json")
+    refute_includes File.read(file), token
+    assert_equal 0o600, File.stat(file).mode & 0o777
+  end
+
+  def test_pair_endpoint_does_not_exist_on_the_local_dashboard
+    local = HudServer.new(port: 7777, status: FakeStatus.new)
+    assert_equal 404, local.route("POST", "/api/pair", { "host" => "localhost:7777" }, "{}").status
+  end
+
+  def test_personal_status_shows_nothing_of_the_work_context
+    music = Object.new
+    def music.now_playing = raise("non deve essere chiamata")
+    snap = HudStatus.new(music: music, ollama_url: "http://127.0.0.1:1", personal: true).snapshot
+    assert_equal "personal", snap[:mode]
+    assert_nil snap[:music]
+    refute_includes snap[:privacy].keys, :work_dir
+    refute_includes snap[:privacy].keys, :work_model
+  end
+
+  def test_trading_runs_locally_through_the_same_job
+    assert TradingLocal.configured?
+    assert_nil TradingLocal.latest
+  end
+end
+
 class MusicNowPlayingTest < Minitest::Test
   def test_parses_state_track_and_artist
     np = Music.now_playing(app: "spotify", runner: ->(_, argv) { "playing\nBleed It Out\nLinkin Park" if argv == ["Spotify"] })

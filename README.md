@@ -363,6 +363,27 @@ Usa un LaunchAgent (`~/Library/LaunchAgents/com.jarvis.hud.plist`). Dopo un `git
 codice Ruby, rilancia `bin/hud-service install` per riavviarlo con la versione nuova (HTML, CSS e JS
 della dashboard invece si aggiornano subito). Ollama deve essere attivo: l'app di Ollama parte al login.
 
+### Dashboard personale sul Mac mini (tablet)
+Sul Mac mini la dashboard ascolta sulla rete di casa, così un tablet può aprirla nel browser:
+```bash
+bin/hud-service install                                 # avvia ruby jarvis.rb --hud --lan come servizio systemd utente
+sudo ufw allow from 192.168.2.0/24 to any port 7777 proto tcp
+sudo loginctl enable-linger $USER                       # parte anche senza login
+ruby jarvis.rb --hud-pair                               # codice monouso per abbinare un dispositivo (10 minuti)
+ruby jarvis.rb --hud-revoke                             # tablet perso: rimuove tutti gli abbinamenti
+```
+Sul tablet apri `http://192.168.2.26:7777` e inserisci il codice. Dopo un `git pull` che cambia il codice
+Ruby rilancia `bin/hud-service install`.
+
+- **Solo contesto personale:** i comandi non arrivano mai al contesto di lavoro né a Copilot e il pannello
+  Audio è nascosto (i comandi musicali funzionano solo su macOS). L'analisi titoli gira direttamente qui, senza SSH.
+- **Accesso:** la pagina non contiene token. Ogni dispositivo ne ottiene uno suo con il codice (5 tentativi,
+  poi il codice non vale più); sul Mac mini, in `~/.jarvis/hud_pairing.json`, restano solo le impronte.
+  Host accettati: indirizzi privati e nome della macchina, più `JARVIS_HUD_HOSTS`. `JARVIS_HUD_BIND` cambia
+  l'indirizzo di ascolto.
+- **Limite:** il traffico è HTTP in chiaro sulla LAN, quindi chi è sulla stessa rete Wi-Fi potrebbe leggerlo.
+  Va bene per consultare; prima di aggiungere comandi agli elettrodomestici serve HTTPS (Tailscale o simile).
+
 ## Agente Copilot Studio (contesto di lavoro)
 Jarvis inoltra le richieste di lavoro all'agente aziendale Copilot Studio con il client ufficiale
 Microsoft (`microsoft-agents-copilotstudio-client`), in un ambiente Python isolato in `.venv`.

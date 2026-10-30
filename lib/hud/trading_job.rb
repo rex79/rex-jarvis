@@ -1,6 +1,14 @@
 require "time"
 require_relative "../trading_remote"
 
+# Dashboard sul Mac mini: l'analisi gira qui, senza SSH. Stessa interfaccia di TradingRemote;
+# ciò che manca (modello, ambiente Python) arriva come errore leggibile nel riquadro.
+module TradingLocal
+  def self.configured? = true
+  def self.run = Trading.remote("run")
+  def self.latest = nil
+end
+
 # Analisi lanciata dalla dashboard: gira in un thread (dura minuti) e la dashboard ne legge lo
 # stato a ogni aggiornamento. Una sola alla volta; il risultato arriva in ~/brain/trading.
 class TradingJob

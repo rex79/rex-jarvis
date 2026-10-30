@@ -33,6 +33,10 @@ module Config
   TRADING_DEEP_MODEL = ENV["JARVIS_TRADING_DEEP_MODEL"] || TRADING_MODEL # per i ruoli che decidono
   TRADING_TICKERS = ENV["JARVIS_TRADING_TICKERS"] # es. "NVDA,ENEL.MI": se c'è, vince su config/trading.yml
 
+  # Dashboard sulla rete di casa (--hud --lan): indirizzo di ascolto e nomi in più accettati come Host.
+  HUD_BIND = ENV.fetch("JARVIS_HUD_BIND", "0.0.0.0")
+  HUD_HOSTS = ENV.fetch("JARVIS_HUD_HOSTS", "").split(/[\s,]+/).reject(&:empty?)
+
   # Bot Telegram di Jarvis: risponde solo agli ID ammessi, in chat privata.
   TELEGRAM_TOKEN = ENV["JARVIS_TELEGRAM_TOKEN"]
   TELEGRAM_ALLOWED = ENV.fetch("JARVIS_TELEGRAM_ALLOWED_USERS", "").split(/[\s,]+/).reject(&:empty?)
