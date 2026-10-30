@@ -43,6 +43,15 @@ module TradingRemote
     latest
   end
 
+  # ssh esce con 255 solo se non riesce a collegarsi; altrimenti il comando è partito e ha fallito:
+  # conta la prima riga di stderr, che ha il messaggio (le ultime sono il backtrace).
+  def self.failure(status, stderr)
+    lines = stderr.to_s.dup.force_encoding("UTF-8").scrub.lines.map(&:strip).reject(&:empty?)
+    return "Mac mini non raggiungibile: #{lines.last.to_s[0, 200]}" if status == 255
+
+    "errore sul Mac mini: #{lines.first.to_s[0, 300]}"
+  end
+
   def self.ssh(command)
     args = ["ssh", "-T", "-i", key, "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes", "-o", "ConnectTimeout=10",
             "-o", "ServerAliveInterval=60", host, command]
@@ -56,10 +65,7 @@ module TradingRemote
         raise Error, "il Mac mini non ha finito entro #{TIMEOUT / 60} minuti"
       end
       out = reader.value.to_s
-      if out.strip.empty?
-        message = errors.value.to_s.lines.grep_v(/^\s*$/).last.to_s.strip
-        raise Error, "Mac mini non raggiungibile: #{message.empty? ? 'nessuna risposta' : message[0, 200]}"
-      end
+      raise Error, failure(thread.value.exitstatus, errors.value) if out.strip.empty?
     end
     out
   end
