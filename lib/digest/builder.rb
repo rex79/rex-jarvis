@@ -18,6 +18,7 @@ module DailyDigest
       2) una riga che inizia con "Perché ti interessa:" e spiega in una frase perché la notizia conta
          per chi segue l'AI. Scrivi "Perché ti interessa: poco, generico." solo se il contenuto è
          promozionale, ripetitivo o senza nulla di concreto, non perché non riguardi i modelli locali.
+      Se la fonte è un repository GitHub, il riassunto dice cosa fa il progetto e a chi serve.
       Non citare l'hardware dell'utente se non è direttamente pertinente.
     PROMPT
 

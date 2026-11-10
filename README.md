@@ -143,12 +143,21 @@ il blog di Qwen (fermo da oltre un anno), arXiv (centinaia di articoli al giorno
 (troppo rumore generalista) e le fonti in italiano (richiederebbero parole chiave in italiano).
 Un feed che smette di funzionare viene saltato con un avviso: non ferma il digest.
 
+### Progetti GitHub
+La sezione cerca i repository nuovi più seguiti, un gruppo di interessi per fonte (`type: github` in
+`config/sources.yml`): skill e agenti (Claude Code, MCP), modelli locali, casa e self-hosting, Ruby e
+"scoperte", cioè i più seguiti di qualsiasi argomento. Ogni gruppo ha un tetto di voci, così nessun tema
+occupa tutta la sezione. Per seguire un interesse nuovo aggiungi una riga con i suoi `topics` (i topic di
+GitHub) o `queries` (qualificatori di ricerca), `days`, `min_stars` e, se il topic attira repository
+fuori tema, `require_text`. Senza `GITHUB_TOKEN` le ricerche sono distanziate di 7 secondi (limite di
+10 al minuto): il digest impiega circa un minuto e mezzo in più.
+
 ### Categorie
 Ogni fonte ha una `category` (in `config/sources.yml`): Ufficiali, Analisi e newsletter, Community
 (Reddit, Hacker News, Lobsters), Ricerca e stampa, Progetti GitHub. Ogni categoria ha dei posti
 garantiti (`slots`): così Reddit, che ha molte voci e un bonus di posizione, non occupa tutto il digest
 e le fonti primarie, che pubblicano di rado, hanno sempre il loro spazio. I posti che una categoria
-non riempie passano alle migliori voci rimaste. Il totale è la somma dei posti (13 di default;
+non riempie passano alle migliori voci rimaste. Il totale è la somma dei posti (16 di default;
 `JARVIS_DIGEST_ITEMS` lo limita). Nel digest ogni voce ha la riga `Categoria:` e nel sito le voci sono
 raggruppate in sezioni, con una barra per saltare dall'una all'altra e le card su più colonne sugli
 schermi larghi. I digest vecchi, senza categorie, restano una lista unica.

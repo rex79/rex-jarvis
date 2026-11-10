@@ -64,32 +64,56 @@ module DailyDigest
       feed(source.merge("url" => "https://www.reddit.com/r/#{source['subreddit']}/top/.rss?t=day", "ranked" => true))
     end
 
+    # Un gruppo di interessi per fonte: `topics` (una ricerca per topic) e/o `queries` (qualificatori
+    # liberi, es. "stars:>1500" per le scoperte fuori dai soliti temi). Repository creati negli ultimi
+    # `days` giorni con almeno `min_stars` stelle. `require_text` (regex su nome, descrizione e
+    # linguaggio) scarta chi usa un topic di moda solo per farsi trovare.
     def self.github(source)
-      since = (Time.now - source.fetch("days", 7) * 86_400).strftime("%Y-%m-%d")
+      days = source.fetch("days", 7)
+      since = (Time.now - days * 86_400).strftime("%Y-%m-%d")
+      searches = Array(source["topics"]).map { |topic| "topic:#{topic}" } + Array(source["queries"])
+      required = source["require_text"] && Regexp.new(source["require_text"], Regexp::IGNORECASE)
 
-      source["topics"].flat_map do |topic|
-        query = URI.encode_www_form_component("topic:#{topic} created:>#{since}")
+      items = searches.flat_map do |search|
+        query = URI.encode_www_form_component("#{search} created:>#{since}")
         url = "https://api.github.com/search/repositories?q=#{query}&sort=stars&order=desc&per_page=10"
 
-        JSON.parse(get(url, "Accept" => "application/vnd.github+json"))["items"].select { |r| r["stargazers_count"] >= source.fetch("min_stars", 0) }.map do |repo|
+        JSON.parse(get(url, "Accept" => "application/vnd.github+json"))["items"].filter_map do |repo|
+          next if repo["stargazers_count"] < source.fetch("min_stars", 0)
+          next if required && !"#{repo['full_name']} #{repo['description']} #{repo['language']}".match?(required)
+
           Item.new(
             title: repo["full_name"],
             url: repo["html_url"],
             source: source["name"],
             published: Time.parse(repo["created_at"]),
-            text: repo["description"].to_s,
-            stars: repo["stargazers_count"],
-            category: source["category"]
+            text: repo_text(repo),
+            stars: repo["stargazers_count"]
           )
         end
       end
+      # La finestra di freschezza segue `days`: con le 48 ore di default resterebbero solo i repository di ieri.
+      decorate(items.uniq(&:url), { "hours" => days * 24 }.merge(source))
+    end
+
+    # Descrizione più i dati che aiutano classifica e riassunto: linguaggio, topic, stelle.
+    def self.repo_text(repo)
+      facts = [repo["language"] && "Linguaggio: #{repo['language']}",
+               Array(repo["topics"]).any? ? "Topic: #{repo['topics'].first(8).join(', ')}" : nil,
+               "#{repo['stargazers_count']} stelle"].compact.join(" · ")
+      "#{repo['description']}\n#{facts}".strip
     end
 
     MIN_GAP = 2.0 # secondi tra due richieste allo stesso host (Reddit limita in fretta)
+    GITHUB_ANONYMOUS_GAP = 7.0 # la ricerca di GitHub senza token concede 10 richieste al minuto
     @last_hit = {}
 
+    def self.gap(host)
+      host == "api.github.com" && ENV["GITHUB_TOKEN"].to_s.empty? ? GITHUB_ANONYMOUS_GAP : MIN_GAP
+    end
+
     def self.throttle(host)
-      wait = MIN_GAP - (Time.now - (@last_hit[host] || Time.at(0)))
+      wait = gap(host) - (Time.now - (@last_hit[host] || Time.at(0)))
       sleep(wait) if wait.positive?
       @last_hit[host] = Time.now
     end
@@ -108,7 +132,7 @@ module DailyDigest
       request["User-Agent"] = UA
       headers.each { |k, v| request[k] = v }
       # Il token (opzionale, alza i limiti dell'API) viaggia solo verso GitHub.
-      request["Authorization"] = "Bearer #{ENV['GITHUB_TOKEN']}" if uri.host == "api.github.com" && ENV["GITHUB_TOKEN"]
+      request["Authorization"] = "Bearer #{ENV['GITHUB_TOKEN']}" if uri.host == "api.github.com" && !ENV["GITHUB_TOKEN"].to_s.empty?
 
       response = http.request(request)
       case response

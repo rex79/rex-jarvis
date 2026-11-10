@@ -389,8 +389,65 @@ class KeywordAndSourceOptionsTest < Minitest::Test
       assert %w[feed reddit github].include?(s["type"]), "tipo non valido in #{s['name']}"
       Regexp.new(s["exclude_url"]) if s["exclude_url"]
       Regexp.new(s["exclude_title"]) if s["exclude_title"]
+      Regexp.new(s["require_text"]) if s["require_text"]
+      assert (Array(s["topics"]) + Array(s["queries"])).any?, "#{s['name']} senza topic né query" if s["type"] == "github"
       assert_match(%r{\Ahttps://}, s["url"], "#{s['name']} deve usare https") if s["type"] == "feed"
     end
+  end
+end
+
+class GithubSourceTest < Minitest::Test
+  def repo(name, stars, description, age_days: 5, **extra)
+    { "full_name" => name, "html_url" => "https://github.com/#{name}", "stargazers_count" => stars,
+      "description" => description, "created_at" => (Time.now - age_days * 86_400).utc.iso8601 }.merge(extra)
+  end
+
+  def collect(source, responses)
+    urls = []
+    fake = lambda do |url, *|
+      urls << URI.decode_www_form_component(url)
+      JSON.generate(items: responses.fetch(urls.size - 1, []))
+    end
+    items = DailyDigest::Collector.stub(:get, fake) { DailyDigest::Collector.github(source) }
+    [items, urls]
+  end
+
+  def test_searches_each_topic_and_query_and_applies_source_options
+    source = { "name" => "GitHub · prova", "topics" => %w[claude-skills mcp-server], "queries" => ["stars:>1500"],
+               "days" => 14, "min_stars" => 100, "max_items" => 2, "category" => "github" }
+    both = repo("a/skill", 900, "Una skill per Claude", "language" => "Ruby", "topics" => %w[claude-skills mcp])
+    items, urls = collect(source, [[both, repo("b/piccolo", 20, "poche stelle")], [both], [repo("c/altro", 5000, nil)]])
+
+    assert_equal 3, urls.size
+    assert_match(/q=topic:claude-skills created:>\d{4}-\d{2}-\d{2}&/, urls[0])
+    assert_match(/q=stars:>1500 created:>/, urls[2])
+    assert_equal %w[a/skill c/altro], items.map(&:title), "sotto soglia scartato, doppione tra topic tenuto una volta"
+    first = items.first
+    assert_equal [2, "github", 14 * 24, 900], [first.cap, first.category, first.window, first.stars]
+    assert_includes first.text, "Linguaggio: Ruby · Topic: claude-skills, mcp · 900 stelle"
+    assert_equal "5000 stelle", items.last.text
+  end
+
+  def test_repositories_older_than_two_days_survive_the_ranker
+    items, = collect({ "name" => "G", "topics" => ["x"], "days" => 30 }, [[repo("a/vecchio", 500, "agent", age_days: 20)]])
+    kept = DailyDigest::Ranker.select(items, { "min_score" => 2, "keywords" => {} }, n: 5, hours: 48)
+    assert_equal ["a/vecchio"], kept.map(&:title)
+  end
+
+  def test_require_text_drops_repositories_that_only_borrow_the_topic
+    source = { "name" => "G", "topics" => ["claude-code"], "require_text" => "skill|agent" }
+    items, = collect(source, [[repo("x/tv-debloat", 50_000, "Debloat any TV"), repo("y/agent-kit", 400, "Kit for AGENTS")]])
+    assert_equal ["y/agent-kit"], items.map(&:title)
+  end
+
+  def test_anonymous_github_search_is_paced_under_ten_requests_per_minute
+    token = ENV.delete("GITHUB_TOKEN")
+    assert_operator DailyDigest::Collector.gap("api.github.com"), :>, 6
+    assert_equal DailyDigest::Collector::MIN_GAP, DailyDigest::Collector.gap("www.reddit.com")
+    ENV["GITHUB_TOKEN"] = "x"
+    assert_equal DailyDigest::Collector::MIN_GAP, DailyDigest::Collector.gap("api.github.com")
+  ensure
+    token ? ENV["GITHUB_TOKEN"] = token : ENV.delete("GITHUB_TOKEN")
   end
 end
 
