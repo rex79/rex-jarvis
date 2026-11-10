@@ -8,10 +8,11 @@ categories:
   - { id: analisi,   label: "Analisi e newsletter", slots: 3 }
   - { id: community, label: "Community",           slots: 3 }
   - { id: stampa,    label: "Ricerca e stampa",    slots: 2 }
-  - { id: github,    label: "Progetti GitHub",     slots: 1 }
+  - { id: github,    label: "Progetti GitHub",     slots: 4 }
 
 # Opzioni per fonte: category, boost, max_items (tetto voci), hours (finestra di freschezza, default 48),
 # title_prefix, exclude_url, exclude_title.
+# Fonti `type: github`: topics e/o queries, days (età massima del repository), min_stars, require_text.
 sources:
   - { name: "r/LocalLLaMA", type: reddit, subreddit: LocalLLaMA, category: community }
   - { name: "r/LocalLLM", type: reddit, subreddit: LocalLLM, max_items: 2, category: community }
@@ -22,8 +23,16 @@ sources:
   - { name: "Simon Willison",   type: feed, ranked: false, url: "https://simonwillison.net/atom/everything/", hours: 72, category: analisi }
   # Release ufficiali = notizie vere. Le pre-release (-rc) sono escluse dall'URL.
   - { name: "Ollama releases",  type: feed, url: "https://github.com/ollama/ollama/releases.atom", title_prefix: "Ollama ", boost: 3, exclude_url: "-(rc|alpha|beta)", max_items: 1, hours: 168, category: ufficiali }
-  # La ricerca per topic porta molto rumore: soglia alta, topic mirati.
-  - { name: "GitHub",           type: github, topics: [ollama, llama-cpp, local-llm], days: 7, min_stars: 150, category: github }
+
+  # --- Progetti GitHub: un gruppo per interesse, così nessun tema occupa tutta la sezione ---
+  # Ogni topic o query è una richiesta: senza GITHUB_TOKEN GitHub ne concede 10 al minuto e il digest le distanzia.
+  # I topic di moda attirano repository fuori tema: `require_text` chiede una parola pertinente nella descrizione.
+  - { name: "GitHub · skill e agenti", type: github, topics: [claude-skills, agent-skills, claude-code, mcp-server], days: 14, min_stars: 300, max_items: 2, require_text: "skill|agent|claude|mcp|plugin", category: github }
+  - { name: "GitHub · modelli locali", type: github, topics: [ollama, llama-cpp, local-llm], days: 30, min_stars: 150, max_items: 1, category: github }
+  - { name: "GitHub · casa e self-hosting", type: github, topics: [home-assistant, self-hosted, homelab], days: 30, min_stars: 100, max_items: 1, category: github }
+  - { name: "GitHub · Ruby", type: github, queries: ["language:Ruby"], days: 30, min_stars: 40, max_items: 1, category: github }
+  # Scoperte: i repository nuovi più seguiti di qualsiasi argomento, per uscire dai soliti temi.
+  - { name: "GitHub · scoperte", type: github, queries: ["stars:>1500"], days: 14, max_items: 1, category: github }
 
   # --- Laboratori e progetti (fonti primarie) ---
   # Feed non ufficiale di anthropic.com/news mantenuto da terzi: se si rompe, il digest lo salta con un avviso.
@@ -64,6 +73,9 @@ ranking:
     agent: 1
     mcp: 2
     ruby: 2
+    skill: 1
+    "home assistant": 1
+    self-hosted: 1
     qwen: 2
     gemma: 2
     embedding: 1
