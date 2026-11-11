@@ -169,7 +169,7 @@ class HudServer
     raise ArgumentError, "comando troppo lungo" if text.length > 2000
 
     reply = @lock.synchronize { @dispatcher.handle(text) }
-    { label: reply.label, text: reply.text.to_s, copilot_active: copilot_active? }
+    { label: reply.label, text: reply.text.to_s, links: Array(reply.links), copilot_active: copilot_active? }
   end
 
   def music(data)
@@ -210,6 +210,13 @@ class HudServer
     [m[1], m[2], headers, length.positive? ? client.read(length) : ""]
   end
 
+  # Un modulo può chiedere di mostrare un sito in un riquadro interno (es. la ricerca di ricette):
+  # solo quei domini, solo in https; tutto il resto resta limitato a questo server.
+  def csp
+    frames = @modules.frame_sources
+    frames.empty? ? CSP : "#{CSP}; frame-src #{frames.join(' ')}"
+  end
+
   # Le API di un modulo possono accettare corpi più grandi (es. l'audio della voce).
   def max_body(path)
     name = path.to_s[%r{\A/api/modules/([a-z0-9_]+)}, 1]
@@ -223,7 +230,7 @@ class HudServer
     client.write "HTTP/1.1 #{response.status} #{reason}\r\n" \
                  "Content-Type: #{response.type}\r\nContent-Length: #{body.bytesize}\r\n" \
                  "Cache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n" \
-                 "Referrer-Policy: no-referrer\r\nContent-Security-Policy: #{CSP}\r\nConnection: close\r\n\r\n"
+                 "Referrer-Policy: no-referrer\r\nContent-Security-Policy: #{csp}\r\nConnection: close\r\n\r\n"
     client.write body
   end
 end

@@ -178,7 +178,8 @@ Senza quella riga Jarvis è quello di sempre. I moduli valgono solo nel contesto
 parole o prefisso di lavoro non li raggiunge mai. Per scriverne uno nuovo basta una cartella con
 `<nome>.rb` (una classe che eredita da `Modules::Base`, vedi `lib/modules.rb`) e, se serve, `hud/hud.js` e
 `hud/hud.css`: può riconoscere comandi con regole fisse, dare strumenti all'agente, esporre API sotto
-`/api/modules/<nome>/` e aggiungere una sezione alla dashboard con `Jarvis.addView`.
+`/api/modules/<nome>/`, aggiungere una sezione alla dashboard con `Jarvis.addView`, allegare link alle
+risposte e dichiarare i siti che la dashboard può mostrare in un riquadro interno (`frame_sources`).
 
 ### Dispensa
 Cosa c'è in congelatore, frigo e dispensa, e cosa cucinarci. Detto a voce o scritto:
@@ -188,15 +189,28 @@ Cosa c'è in congelatore, frigo e dispensa, e cosa cucinarci. Detto a voce o scr
 | "Aggiungi al congelatore due confezioni di piselli e il pane" | li segna (anche "metti in frigo…", "ho messo nel freezer…") |
 | "Cosa ho in congelatore?" · "Cosa ho in casa?" | elenca |
 | "Ho finito i piselli" · "Togli il pollo dal freezer" | li toglie |
-| "Ho in frigo zucchine e uova, cosa posso cucinare?" | propone due o tre piatti |
+| "Cercami la ricetta della carbonara" · "Un'idea per un dolce?" | risponde a quello che chiedi, senza guardare cosa hai in casa |
+| "Cosa cucino con quello che ho in casa?" · "Una ricetta con gli avanzi" | propone due o tre piatti con gli alimenti segnati |
+| "Ho in frigo zucchine e uova, cosa posso cucinare?" | come sopra: nominare frigo, congelatore o dispensa basta |
+| "Vai con quello che ho in frigo" | riprende la richiesta di poco prima (entro 10 minuti) usando gli alimenti segnati |
 | "Cosa ho in congelatore e che posso mangiare a pranzo o cena?" | elenca e propone |
 
 - **Elenco:** `~/brain/casa/dispensa.md`, una nota come le altre (indicizzata, correggibile a mano). Aggiungere,
   togliere ed elencare usa regole fisse, senza modello: risposta immediata e sempre uguale.
-- **Idee per i pasti:** un modello su OpenRouter (`JARVIS_DISPENSA_MODEL`, altrimenti quello del digest), a
-  cui arrivano solo l'elenco degli alimenti e la tua frase. Se non risponde ricevi comunque l'elenco.
+- **Ricette e idee per i pasti:** un modello su OpenRouter (`JARVIS_DISPENSA_MODEL`, altrimenti quello del
+  digest), a cui arriva la tua frase; l'elenco degli alimenti gli arriva solo quando chiedi di usare quello
+  che hai (un posto, "in casa", "quello che ho", "gli avanzi"). Se non risponde e avevi chiesto di usare
+  quello che hai, ricevi comunque l'elenco.
+- **Provarlo dal terminale:** `ruby jarvis.rb --ask "personale: cercami la ricetta della carbonara"` stampa la
+  risposta e, sotto, i link di Cookidoo.
 - **Dashboard:** sezione **Dispensa** con i tre elenchi; un tocco su un alimento chiede conferma, il secondo
   lo toglie, e ogni elenco ha un campo per aggiungere a mano.
+- **Cookidoo (Bimby):** sotto le idee per i pasti compare un pulsante per ogni piatto proposto, che apre la
+  ricerca di Cookidoo già compilata; in cima alla sezione c'è anche un campo per cercare a mano. Jarvis
+  prepara solo l'indirizzo: non legge il sito e non conosce le tue credenziali. La pagina si apre in un
+  riquadro sopra la dashboard (resta lo schermo intero) e **Torna a Jarvis** lo chiude. Se dentro il
+  riquadro Cookidoo non ti riconosce come abbonato, **Apri in una scheda** lo apre nel browser normale.
+  `JARVIS_COOKIDOO_SEARCH` cambia la pagina di ricerca (default `https://cookidoo.it/search/it-IT`).
 
 ### Voce
 Il tasto **Voce** della dashboard accende la modalità vocale: Jarvis ascolta una frase (finisce da sola dopo
@@ -316,7 +330,7 @@ Sul tablet apri `http://192.168.2.26:7777` e inserisci il codice. Dopo un `git p
 Ruby rilancia `bin/hud-service install`.
 
 - **Interfaccia per il tocco:** una sezione alla volta con pulsanti grandi (Casa, Jarvis, Digest, Sistema,
-  più le sezioni dei moduli accesi).
+  più le sezioni dei moduli accesi). **Schermo intero**, in alto a destra, toglie le barre del browser.
   Dopo 3 minuti senza tocchi compare la schermata a riposo con l'ora, che si sposta di poco ogni minuto
   per non segnare lo schermo; un tocco la chiude. Tenere acceso lo schermo spetta al tablet (app kiosk o
   impostazioni). Dopo un `git pull` che cambia solo HTML, CSS o JS basta ricaricare la pagina.

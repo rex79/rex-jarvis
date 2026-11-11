@@ -1,5 +1,6 @@
 require "date"
 require "json"
+require "uri"
 require "fileutils"
 require_relative "../../lib/config"
 require_relative "../../lib/modules"
@@ -7,8 +8,11 @@ require_relative "../../lib/modules"
 # Cosa c'è in congelatore, frigo e dispensa, e cosa cucinarci.
 #   - L'elenco sta in ~/brain/casa/dispensa.md: una nota come le altre (indicizzata, modificabile a mano).
 #   - Aggiungere, togliere ed elencare si fa con regole fisse, senza modello: immediato e sempre uguale.
-#   - Solo le idee per i pasti usano un modello online (OpenRouter): gli arrivano l'elenco degli
-#     alimenti e la frase dell'utente, nient'altro.
+#   - Ricette e idee per i pasti usano un modello online (OpenRouter), a cui arriva la frase dell'utente.
+#     L'elenco degli alimenti gli arriva solo se l'utente chiede di usare quello che ha ("con quello che
+#     ho in frigo", "cosa cucino con gli avanzi"): "la ricetta della carbonara" resta la carbonara.
+#   - Ogni piatto proposto porta un link alla ricerca di Cookidoo (ricette per il Bimby): Jarvis prepara
+#     solo l'indirizzo, il sito lo apre e lo usa l'utente dal suo browser, con il suo abbonamento.
 module Dispensa
   PLACES = {
     "congelatore" => { label: "Congelatore", where: "nel congelatore", from: "dal congelatore", empty: "Il congelatore è vuoto.",
@@ -18,6 +22,13 @@ module Dispensa
   }.freeze
 
   Item = Struct.new(:name, :since)
+
+  # Pagina di ricerca di Cookidoo per il proprio paese (JARVIS_COOKIDOO_SEARCH per cambiarla).
+  def self.cookidoo = ENV.fetch("JARVIS_COOKIDOO_SEARCH", "https://cookidoo.it/search/it-IT")
+
+  def self.cookidoo_link(query)
+    { title: "Cookidoo: #{query}", url: "#{cookidoo}?#{URI.encode_www_form(query: query)}", frame: true }
+  end
 
   # Parole che non distinguono un alimento da un altro: articoli, numeri, unità di misura.
   STOP = %w[il lo la i gli le l un una uno di del della dei degli delle dello dell d e ed da in con
@@ -128,12 +139,16 @@ module Dispensa
     REMOVE = /\A(?:togli|togliere|rimuovi|elimina|cancella|leva|ho finito|ho mangiato|ho usato|ho consumato|ho tolto|abbiamo finito|abbiamo mangiato)\b/
     LIST = /\b(?:(?:cosa|cos|che) (?:ho|c è|ci sta|abbiamo|è rimasto|rimane|resta)|elenc\w*|lista|mostra\w*|leggi\w*)\b/
     EVERYWHERE = /\b(?:in casa|da mangiare)\b/
-    COOK = /\b(?:cucin\w*|mangi\w*|pranz\w*|cena|cenare|ceno|ceniamo|ricett\w*|prepar\w*|piatt\w*)\b/
+    COOK = /\b(?:cucin\w*|mangi\w*|pranz\w*|cena|cenare|ceno|ceniamo|ricett\w*|prepar\w*|piatt\w*|dolc\w*|tort\w*|antipast\w*|contorn\w*|colazione|merenda|spuntin\w*|bimby|cookidoo)\b/
     ASK = /\b(?:cosa|cos|idee|idea|consigli\w*|sugger\w*|propon\w*|ricett\w*|che (?:posso|potrei|possiamo|cosa))\b/
     FILLER = /\b(?:agli alimenti|tra gli alimenti|alla lista|all elenco|anche|per favore|grazie|jarvis)\b/
+    # "Usa quello che ho": un posto, "in casa", "quello che c'è", "gli avanzi".
+    HOME = /\b(?:in casa|avanzi|(?:(?:quello|quel|ciò|cosa|cos) che|cosa|cos) (?:ho|c è|ci sta|abbiamo|è rimasto|rimane|resta|avanza)\b(?! voglia))\b/
+    # Il seguito di una richiesta: "vai con quello che ho in frigo", "ok, usa la dispensa".
+    FOLLOW = /\A(?:(?:ok|sì|si|allora|dai|bene|va bene|invece|e)[\s,]+)*(?:(?:vai|andiamo|prova|proviamo|fai|facciamo|resta|rimani|cerca\w*)\s+(?:(?:pure|solo|invece)\s+)*con|solo con|con|usa|usiamo)\b/
     ARTICLE = /\A(?:(?:il|lo|la|i|gli|le|l|dei|degli|delle|del|della|dello|dell|di|d)\s+)+/
 
-    Action = Struct.new(:kind, :place, :items, :list_first, keyword_init: true)
+    Action = Struct.new(:kind, :place, :items, :list_first, :home, :follow, keyword_init: true)
 
     def self.parse(text)
       clean = normalize(text)
@@ -143,7 +158,9 @@ module Dispensa
       elsif clean.match?(REMOVE)
         Action.new(kind: :remove, place: place, items: items(clean.sub(REMOVE, "")))
       elsif clean.match?(COOK) && clean.match?(ASK)
-        Action.new(kind: :cook, place: place, list_first: clean.match?(LIST))
+        Action.new(kind: :cook, place: place, list_first: home?(clean) && clean.match?(LIST), home: home?(clean))
+      elsif clean.match?(FOLLOW) && home?(clean)
+        Action.new(kind: :cook, place: place, home: true, follow: true)
       elsif clean.match?(LIST) && (place || clean.match?(EVERYWHERE))
         Action.new(kind: :list, place: place)
       end
@@ -152,6 +169,9 @@ module Dispensa
     def self.normalize(text)
       text.to_s.downcase.tr("'’", "  ").gsub(/[^\p{L}\p{N}\s,;]/, " ").sub(/\A\s*jarvis\s*[,;]?\s*/, "").squeeze(" ").strip
     end
+
+    # La frase chiede di cucinare con quello che c'è in casa?
+    def self.home?(clean) = !place_of(clean).nil? || clean.match?(HOME)
 
     def self.place_of(clean)
       word = clean[PLACE, 1]
@@ -167,16 +187,42 @@ module Dispensa
   end
 
   class Module < Modules::Base
-    COOK_PROMPT = <<~PROMPT.freeze
-      Sei Jarvis e aiuti l'utente a decidere cosa cucinare con quello che ha in casa. Rispondi in
-      italiano con un testo breve che verrà letto ad alta voce: frasi semplici, niente elenchi puntati,
-      niente simboli, niente Markdown. Proponi due o tre piatti che si possono preparare soprattutto con
-      gli alimenti indicati; per ognuno di' quali alimenti usa e in una frase come si prepara. Se un
-      alimento è nel congelatore ricorda di scongelarlo. Puoi dare per scontate le basi comuni (olio,
-      sale, spezie, pasta, riso, cipolla, aglio), ma non inventare altri alimenti che l'utente non ha
-      nominato: se manca qualcosa di importante, dillo. Non salutare e non ripetere l'elenco degli
-      alimenti: vai subito ai piatti.
+    STYLE = <<~PROMPT.freeze
+      Rispondi in italiano con un testo breve che verrà letto ad alta voce: frasi semplici, niente
+      elenchi puntati, niente simboli, niente Markdown. Non salutare: vai subito al punto.
     PROMPT
+    SEARCHES = <<~PROMPT.freeze
+      Chiudi con un'ultima riga che comincia con "RICERCHE:" seguita dai nomi dei piatti di cui hai
+      parlato, brevi (due o tre parole, come li cercheresti in un ricettario), separati da punto e virgola.
+    PROMPT
+    # Richiesta libera: un piatto preciso, un ingrediente, un'occasione. La casa non c'entra.
+    RECIPE_PROMPT = <<~PROMPT.freeze
+      Sei Jarvis e aiuti l'utente in cucina. Capisci prima che cosa chiede e rispondi a quello.
+      #{STYLE.strip}
+      Se nomina un piatto preciso (la carbonara, un tiramisù) parla solo di quel piatto: gli ingredienti
+      principali e in due o tre frasi come si prepara, senza proporne altri. Se chiede un'idea (un dolce,
+      qualcosa di veloce, un secondo di pesce, qualcosa con un certo ingrediente) proponi due o tre piatti
+      adatti e per ognuno di' in una frase come si prepara. Rispetta quello che dice su tempo, numero di
+      persone, gusti e alimenti da evitare. Non sai cosa ha in casa: non fare ipotesi su cosa ha o non ha.
+      #{SEARCHES.strip}
+    PROMPT
+    # Richiesta "con quello che ho": qui arriva anche l'elenco degli alimenti.
+    COOK_PROMPT = <<~PROMPT.freeze
+      Sei Jarvis e aiuti l'utente a cucinare con quello che ha in casa. Capisci prima che cosa chiede
+      (un piatto preciso, un tipo di piatto, un pasto) e rispondi a quello, usando gli alimenti indicati.
+      #{STYLE.strip}
+      Proponi due o tre piatti che si possono preparare soprattutto con quegli alimenti (uno solo se
+      l'utente ha chiesto un piatto preciso); per ognuno di' quali alimenti usa e in una frase come si
+      prepara. Se l'utente nomina un posto (congelatore, frigo, dispensa) parti dagli alimenti di quel
+      posto. Se un alimento è nel congelatore ricorda di scongelarlo. Puoi dare per scontate le basi
+      comuni (olio, sale, spezie, pasta, riso, cipolla, aglio), ma non inventare altri alimenti che
+      l'utente non ha nominato: se manca qualcosa di importante, dillo. Non ripetere l'elenco degli alimenti.
+      #{SEARCHES.strip}
+    PROMPT
+    FOLLOW_UP = 600 # secondi entro cui "vai con quello che ho in frigo" si riferisce alla richiesta precedente
+    # Parole della domanda, non del piatto: servono solo a ricavare una ricerca se il modello non la dà.
+    ASKING = %w[per che mi me ci si come fare faccio fa voglio vorrei posso potrei possiamo stasera oggi domani sera
+                qualcosa qualche su cookidoo bimby cerca cercami trova trovami dammi dimmi cosa cos idee idea].freeze
 
     def initialize(store: Store.new, llm: nil, clock: -> { Date.today })
       @store = store
@@ -191,7 +237,7 @@ module Dispensa
       when :add then add(action.place, action.items)
       when :remove then remove(action.place, action.items, strict: !action.place.nil?)
       when :list then list(action.place)
-      when :cook then cook(text, action.list_first ? action.place || :all : nil)
+      when :cook then cook(text, action.list_first ? action.place || :all : nil, home: action.home, follow: action.follow)
       end
     end
 
@@ -223,15 +269,26 @@ module Dispensa
       end.join(" ")
     end
 
-    def cook(request, list_first = nil)
+    # home: usa l'elenco degli alimenti; follow: la frase continua la richiesta di poco prima
+    # ("ricetta per un dolce" … "vai con quello che ho in dispensa").
+    def cook(request, list_first = nil, home: false, follow: false)
       intro = list_first && list(list_first == :all ? nil : list_first)
-      messages = [{ role: "system", content: COOK_PROMPT },
-                  { role: "user", content: "Alimenti in casa:\n#{inventory}\n\nRichiesta: #{request.to_s.strip[0, 500]}" }]
+      request = request.to_s.strip[0, 500]
+      before, at = @last_request
+      @last_request = [request, Time.now]
+      request = "#{before}\nPoi ha aggiunto: #{request}" if follow && before && Time.now - at < FOLLOW_UP
+      content = "Richiesta: #{request}\n\n(Ricorda la riga finale RICERCHE:)"
+      content = "Alimenti in casa:\n#{inventory}\n\n#{content}" if home
+      messages = [{ role: "system", content: home ? COOK_PROMPT : RECIPE_PROMPT }, { role: "user", content: content }]
       ideas = llm.chat(messages, options: { temperature: 0.6, num_predict: 500 })["message"]["content"].to_s
-      ideas = ideas.gsub(/[*_#`]/, "").gsub(/^\s*[-•]\s+/, "").gsub(/\n{3,}/, "\n\n").strip # i modelli amano il Markdown: qui si legge ad alta voce
-      [intro, ideas].compact.join("\n\n")
+      ideas = ideas.gsub(/[*_#`]/, "").gsub(/^[ \t]*[-•][ \t]+/, "") # i modelli amano il Markdown: qui si legge ad alta voce
+      searches = ideas[/^\s*RICERCHE:\s*(.+)$/i, 1].to_s.split(/[;\n]/).map { |q| q.gsub(/[^\p{L}\p{N}\s']/, " ").squeeze(" ").strip[0, 60] }
+      ideas = ideas.sub(/^\s*RICERCHE:.*\z/im, "").gsub(/\n{3,}/, "\n\n").strip
+      searches = [home ? fallback_search : request_search(request)] if searches.all?(&:empty?) # il modello a volte dimentica la riga
+      links = searches.compact.reject(&:empty?).uniq.first(3).map { |query| Dispensa.cookidoo_link(query) }
+      Modules::Reply.new([intro, ideas].compact.join("\n\n"), links)
     rescue StandardError => e
-      [intro || list, "Non riesco a chiedere idee al modello online (#{e.message[0, 120]})."].join("\n\n")
+      [intro || (home ? list : nil), "Non riesco a chiedere idee al modello online (#{e.message[0, 120]})."].compact.join("\n\n")
     end
 
     def tools
@@ -241,14 +298,16 @@ module Dispensa
         Modules.tool("dispensa_aggiungi", "Segna alimenti in congelatore, frigo o dispensa", { posto: places, alimenti: foods }, %w[posto alimenti]),
         Modules.tool("dispensa_togli", "Toglie dall'elenco alimenti finiti o consumati", { posto: places, alimenti: foods }, ["alimenti"]),
         Modules.tool("dispensa_elenco", "Elenca gli alimenti in casa (in un posto, o tutti)", { posto: places }, []),
-        Modules.tool("idee_pasto", "Propone cosa cucinare per pranzo o cena con gli alimenti in casa",
-                     { richiesta: { type: "string", description: "La richiesta con le parole dell'utente" } }, ["richiesta"])
+        Modules.tool("idee_pasto", "Ricette e idee per i pasti: un piatto preciso, un'idea per pranzo o cena, oppure cosa cucinare con gli alimenti in casa",
+                     { richiesta: { type: "string", description: "La richiesta con le parole dell'utente" },
+                       usa_alimenti_in_casa: { type: "boolean", description: "true solo se l'utente chiede di usare quello che ha in congelatore, frigo o dispensa" } },
+                     ["richiesta"])
       ]
     end
 
     def prompt
       "- dispensa_aggiungi, dispensa_togli, dispensa_elenco: gli alimenti in congelatore, frigo e dispensa. " \
-        "Per domande su cosa cucinare o mangiare usa idee_pasto e riporta la sua risposta così com'è."
+"Per ricette e domande su cosa cucinare o mangiare usa idee_pasto e riporta la sua risposta così com'è."
     end
 
     def call_tool(name, args)
@@ -258,7 +317,9 @@ module Dispensa
       when "dispensa_aggiungi" then add(place || raise(ArgumentError, "manca il posto"), foods)
       when "dispensa_togli" then remove(place, foods)
       when "dispensa_elenco" then list(place)
-      when "idee_pasto" then cook(args.fetch("richiesta"))
+      when "idee_pasto"
+        request = args.fetch("richiesta")
+        cook(request, home: args["usa_alimenti_in_casa"] == true || Commands.home?(Commands.normalize(request))).to_s
       else raise ArgumentError, "strumento sconosciuto: #{name}"
       end
     end
@@ -282,9 +343,11 @@ module Dispensa
       raise ArgumentError, "corpo JSON non valido"
     end
 
+    def frame_sources = [Dispensa.cookidoo[%r{\Ahttps://[a-z0-9.-]+}i].to_s.downcase]
+
     def status
       items = @store.all
-      { places: PLACES.map { |id, place| { id: id, label: place[:label], items: items[id].map { |item| { name: item.name, since: item.since } } } } }
+      { cookidoo: Dispensa.cookidoo, places: PLACES.map { |id, place| { id: id, label: place[:label], items: items[id].map { |item| { name: item.name, since: item.since } } } } }
     end
 
     private
@@ -296,6 +359,21 @@ module Dispensa
     def inventory
       items = @store.all
       PLACES.map { |id, place| "#{place[:label]}: #{items[id].empty? ? 'niente' : items[id].map(&:name).join(', ')}" }.join("\n")
+    end
+
+    # Senza ricerche dal modello: i primi alimenti in casa, senza quantità ("6 uova" → "uova").
+    def fallback_search
+      names = @store.all.values.flatten.first(3).map do |item|
+        item.name.downcase.scan(/[\p{L}]+/).reject { |word| STOP.include?(word) }.join(" ")
+      end
+      names.reject(&:empty?).join(" ")[0, 60]
+    end
+
+    # Senza ricerche dal modello e senza usare la casa: le parole della richiesta che non sono la domanda
+    # ("cercami la ricetta della carbonara" → "carbonara").
+    def request_search(request)
+      clean = Commands.normalize(request.to_s.lines.first).gsub(Commands::COOK, " ").gsub(Commands::ASK, " ")
+      clean.scan(/[\p{L}]+/).reject { |word| STOP.include?(word) || ASKING.include?(word) }.first(4).join(" ")[0, 60]
     end
 
     # Il modello per le idee: JARVIS_DISPENSA_MODEL, altrimenti quello del digest se è già su OpenRouter.
