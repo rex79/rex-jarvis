@@ -182,7 +182,7 @@ body[data-mode="personal"] .tile {
 .tile p { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
 .tile p.err { color: var(--red); }
 .tile h2 { margin: 0; }
-.tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 8px 12px; border-top: 1px solid var(--line); background: var(--bg); }
+.tabs { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; padding: 8px 12px; border-top: 1px solid var(--line); background: var(--bg); }
 body[data-mode="personal"] .tabs button { min-height: 60px; padding: 4px 2px; font-size: 13px; letter-spacing: .06em; }
 .tabs button[aria-current="page"] { color: var(--bg); background: var(--cyan); border-color: var(--cyan); }
 .rest { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: #000; cursor: pointer; }

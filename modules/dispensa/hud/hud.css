@@ -1,0 +1,17 @@
+.dispensa { display: flex; flex-direction: column; gap: 18px; }
+.dispensa h3 { margin: 0 0 6px; font-size: 12px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--cyan-soft); }
+.dispensa .list { margin: 0; gap: 6px; }
+.dispensa .list button {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; padding: 8px 10px;
+  text-align: left; text-transform: none; letter-spacing: .02em; font-size: 14px; color: var(--text);
+}
+.dispensa .list button.armed { border-color: var(--red); color: var(--red); }
+.dispensa form { display: flex; gap: 8px; margin-top: 8px; }
+.dispensa form input {
+  flex: 1; min-width: 0; padding: 8px 10px; background: transparent; border: 1px solid var(--line);
+  color: var(--text); font: inherit; font-size: 14px;
+}
+.dispensa form input:focus { outline: 0; border-color: var(--cyan); }
+.dispensa form button { min-width: 48px; font-size: 18px; letter-spacing: 0; }
+body[data-mode="personal"] .dispensa .list button { font-size: 17px; }
+body[data-mode="personal"] .dispensa form input { font-size: 17px; min-height: 52px; }

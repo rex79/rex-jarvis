@@ -168,6 +168,58 @@ parte di Jarvis: stanno in un repo a sé (`~/trading`, comando `ruby trading.rb`
 le note in `~/brain/trading` e `~/brain/signals`, che `--index` indicizza come tutte le altre: `search_notes`
 le trova ancora. La dashboard non le mostra più.
 
+## Moduli (casa)
+Le funzioni che non servono a tutti stanno fuori dal nucleo, ognuna in `modules/<nome>/` con il suo codice,
+i suoi dati, il suo pezzo di dashboard e i suoi test. Si accendono per macchina in `~/.jarvis_env`:
+```
+JARVIS_MODULES=dispensa,voce
+```
+Senza quella riga Jarvis è quello di sempre. I moduli valgono solo nel contesto personale: un comando con
+parole o prefisso di lavoro non li raggiunge mai. Per scriverne uno nuovo basta una cartella con
+`<nome>.rb` (una classe che eredita da `Modules::Base`, vedi `lib/modules.rb`) e, se serve, `hud/hud.js` e
+`hud/hud.css`: può riconoscere comandi con regole fisse, dare strumenti all'agente, esporre API sotto
+`/api/modules/<nome>/` e aggiungere una sezione alla dashboard con `Jarvis.addView`.
+
+### Dispensa
+Cosa c'è in congelatore, frigo e dispensa, e cosa cucinarci. Detto a voce o scritto:
+
+| Frase | Cosa succede |
+|---|---|
+| "Aggiungi al congelatore due confezioni di piselli e il pane" | li segna (anche "metti in frigo…", "ho messo nel freezer…") |
+| "Cosa ho in congelatore?" · "Cosa ho in casa?" | elenca |
+| "Ho finito i piselli" · "Togli il pollo dal freezer" | li toglie |
+| "Ho in frigo zucchine e uova, cosa posso cucinare?" | propone due o tre piatti |
+| "Cosa ho in congelatore e che posso mangiare a pranzo o cena?" | elenca e propone |
+
+- **Elenco:** `~/brain/casa/dispensa.md`, una nota come le altre (indicizzata, correggibile a mano). Aggiungere,
+  togliere ed elencare usa regole fisse, senza modello: risposta immediata e sempre uguale.
+- **Idee per i pasti:** un modello su OpenRouter (`JARVIS_DISPENSA_MODEL`, altrimenti quello del digest), a
+  cui arrivano solo l'elenco degli alimenti e la tua frase. Se non risponde ricevi comunque l'elenco.
+- **Dashboard:** sezione **Dispensa** con i tre elenchi; un tocco su un alimento chiede conferma, il secondo
+  lo toglie, e ogni elenco ha un campo per aggiungere a mano.
+
+### Voce
+Il tasto **Voce** della dashboard accende la modalità vocale: Jarvis ascolta una frase (finisce da sola dopo
+una pausa), la trascrive, risponde a schermo e ad alta voce, poi torna ad ascoltare. Si spegne con lo stesso
+tasto, dicendo "basta" o dopo 15 secondi di silenzio.
+
+```bash
+bin/setup-voce            # faster-whisper in .venv-voce e modello Whisper (default base, ~150 MB)
+```
+- **Trascrizione locale:** l'audio va dal tablet al Mac mini, che lo trascrive con Whisper e lo cancella
+  subito: non esce da casa. Log in `~/.jarvis/voce.log`.
+- **Tempi sul Mac mini del 2011:** Whisper lavora sempre su una finestra di 30 secondi, quindi il tempo non
+  dipende dalla lunghezza della frase: circa 6 secondi con `base` (default), 3 con `tiny` (sbaglia più
+  parole), 21 con `small`. Si sceglie con `JARVIS_VOCE_MODEL`, poi `bin/setup-voce` per scaricarlo.
+- **Risposta a voce:** la legge il tablet con la sua sintesi vocale (serve una voce italiana installata).
+- **HTTPS obbligatorio:** i browser concedono il microfono solo alle pagine sicure. In `~/.jarvis_env` metti
+  `JARVIS_HUD_TLS=1` e rilancia `bin/hud-service install`: il Mac mini si genera un certificato suo
+  (`~/.jarvis/hud_cert.pem`, valido 5 anni per i suoi nomi e indirizzi) e la dashboard passa a
+  `https://192.168.2.26:7777`. Sul tablet, la prima volta, Chrome avvisa che il certificato non è
+  riconosciuto: **Avanzate → Procedi**, poi abbina di nuovo il dispositivo (l'indirizzo è cambiato) e
+  concedi il microfono. Se Chrome non lo chiede, installa il certificato sul tablet (Impostazioni →
+  Sicurezza → Installa un certificato → Certificato CA).
+
 ## Installazione su una nuova macchina
 ```bash
 git clone git@github.com:rex79/rex-jarvis.git && cd rex-jarvis
@@ -263,7 +315,8 @@ ruby jarvis.rb --hud-revoke                             # tablet perso: rimuove 
 Sul tablet apri `http://192.168.2.26:7777` e inserisci il codice. Dopo un `git pull` che cambia il codice
 Ruby rilancia `bin/hud-service install`.
 
-- **Interfaccia per il tocco:** una sezione alla volta con pulsanti grandi (Casa, Jarvis, Digest, Sistema).
+- **Interfaccia per il tocco:** una sezione alla volta con pulsanti grandi (Casa, Jarvis, Digest, Sistema,
+  più le sezioni dei moduli accesi).
   Dopo 3 minuti senza tocchi compare la schermata a riposo con l'ora, che si sposta di poco ogni minuto
   per non segnare lo schermo; un tocco la chiude. Tenere acceso lo schermo spetta al tablet (app kiosk o
   impostazioni). Dopo un `git pull` che cambia solo HTML, CSS o JS basta ricaricare la pagina.
@@ -273,8 +326,8 @@ Ruby rilancia `bin/hud-service install`.
   poi il codice non vale più); sul Mac mini, in `~/.jarvis/hud_pairing.json`, restano solo le impronte.
   Host accettati: indirizzi privati e nome della macchina, più `JARVIS_HUD_HOSTS`. `JARVIS_HUD_BIND` cambia
   l'indirizzo di ascolto.
-- **Limite:** il traffico è HTTP in chiaro sulla LAN, quindi chi è sulla stessa rete Wi-Fi potrebbe leggerlo.
-  Va bene per consultare; prima di aggiungere comandi agli elettrodomestici serve HTTPS (Tailscale o simile).
+- **Limite:** senza `JARVIS_HUD_TLS=1` il traffico è HTTP in chiaro sulla LAN, quindi chi è sulla stessa rete
+  Wi-Fi potrebbe leggerlo. Con HTTPS (vedi il modulo Voce) viaggia cifrato con il certificato del Mac mini.
 
 ## Agente Copilot Studio (contesto di lavoro)
 Jarvis inoltra le richieste di lavoro all'agente aziendale Copilot Studio con il client ufficiale

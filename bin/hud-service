@@ -16,9 +16,14 @@ PORT="${JARVIS_HUD_PORT:-7777}"
 DOMAIN="gui/$(id -u)"
 REPO="$(pwd)"
 
+# Con JARVIS_HUD_TLS la dashboard risponde in https con il certificato del Mac mini (-k: non verificato).
+hud_up() {
+  curl -s -o /dev/null -m 1 "http://localhost:$PORT/" || curl -sk -o /dev/null -m 1 "https://localhost:$PORT/"
+}
+
 wait_for_hud() {
   for _ in $(seq 1 20); do
-    curl -s -o /dev/null -m 1 "http://localhost:$PORT/" && return 0
+    hud_up && return 0
     sleep 0.5
   done
   return 1
@@ -66,7 +71,7 @@ UNITEOF
       ;;
     status)
       systemctl --user --no-pager status jarvis-hud | sed -n '1,4p' || true
-      if curl -s -o /dev/null -m 1 "http://localhost:$PORT/"; then echo "  dashboard: porta $PORT risponde"; else echo "  dashboard: non risponde"; fi
+      if hud_up; then echo "  dashboard: porta $PORT risponde"; else echo "  dashboard: non risponde"; fi
       ;;
     logs) journalctl --user -u jarvis-hud -n "${2:-40}" --no-pager ;;
     *) echo "Uso: bin/hud-service install|uninstall|status|logs"; exit 1 ;;
@@ -150,7 +155,7 @@ PLISTEOF
     else
       echo "  servizio non installato"
     fi
-    if curl -s -o /dev/null -m 1 "http://localhost:$PORT/"; then echo "  dashboard: http://localhost:$PORT risponde"; else echo "  dashboard: non risponde"; fi
+    if hud_up; then echo "  dashboard: http://localhost:$PORT risponde"; else echo "  dashboard: non risponde"; fi
     ;;
   logs) tail -n "${2:-40}" "$LOG" ;;
   open) open "http://localhost:$PORT/" ;;

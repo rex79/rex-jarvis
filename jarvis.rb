@@ -75,8 +75,12 @@ if ARGV.include?("--hud")
   port = Integer(arg_value("--port") || 7777)
   lan = ARGV.include?("--lan") # sulla rete di casa solo il contesto personale, qualunque cosa chieda il comando
   begin
-    HudServer.new(port: port, dispatcher: Dispatcher.new(forced: lan ? "personal" : arg_value("--context")),
+    modules = Modules.load
+    HudServer.new(port: port, modules: modules,
+                  dispatcher: Dispatcher.new(forced: lan ? "personal" : arg_value("--context"), modules: modules),
                   **(lan ? HudServer.lan_options : {})).start
+  rescue ArgumentError => e
+    abort "❌ #{e.message}"
   rescue Interrupt
     puts "\nHUD fermato."
   end
@@ -86,7 +90,7 @@ end
 # Ogni comando va al contesto giusto (lavoro o personale); --context lo forza.
 dispatcher = nil
 handle = lambda do |text|
-  dispatcher ||= Dispatcher.new(forced: arg_value("--context")).tap do |d|
+  dispatcher ||= Dispatcher.new(forced: arg_value("--context"), modules: Modules.load).tap do |d|
     d.progress = lambda do |seconds|
       $stderr.print "\r⏳ Copilot sta lavorando… #{seconds / 60}:#{format('%02d', seconds % 60)}" if $stderr.tty?
     end
