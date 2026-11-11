@@ -13,6 +13,17 @@ def utf8(text)
   text&.dup&.force_encoding("UTF-8")&.scrub
 end
 
+# Un'opzione scritta male (--hub-pair) non deve aprire la chat in silenzio: si ferma e suggerisce quella giusta.
+OPTIONS = %w[--index --site --publish --digest --dry-run --copilot-login --copilot-status --hud-pair --hud-revoke
+             --hud --lan --port --context --ask].freeze
+WITH_VALUE = %w[--port --context --ask].freeze
+unknown = ARGV.each_with_index.select { |arg, i| arg.start_with?("-") && !OPTIONS.include?(arg) && !(i.positive? && WITH_VALUE.include?(ARGV[i - 1])) }.map(&:first)
+unless unknown.empty?
+  require "did_you_mean"
+  hint = DidYouMean::SpellChecker.new(dictionary: OPTIONS).correct(unknown.first).first
+  abort "❌ opzione sconosciuta: #{unknown.join(', ')}#{hint ? " (forse volevi #{hint}?)" : ''}\nOpzioni: #{OPTIONS.join(' ')}"
+end
+
 if ARGV.include?("--index")
   [Contexts.personal, Contexts.work].each do |context|
     next unless Dir.exist?(context.root)
@@ -75,8 +86,12 @@ if ARGV.include?("--hud")
   port = Integer(arg_value("--port") || 7777)
   lan = ARGV.include?("--lan") # sulla rete di casa solo il contesto personale, qualunque cosa chieda il comando
   begin
-    HudServer.new(port: port, dispatcher: Dispatcher.new(forced: lan ? "personal" : arg_value("--context")),
+    modules = Modules.load
+    HudServer.new(port: port, modules: modules,
+                  dispatcher: Dispatcher.new(forced: lan ? "personal" : arg_value("--context"), modules: modules),
                   **(lan ? HudServer.lan_options : {})).start
+  rescue ArgumentError => e
+    abort "❌ #{e.message}"
   rescue Interrupt
     puts "\nHUD fermato."
   end
@@ -86,7 +101,7 @@ end
 # Ogni comando va al contesto giusto (lavoro o personale); --context lo forza.
 dispatcher = nil
 handle = lambda do |text|
-  dispatcher ||= Dispatcher.new(forced: arg_value("--context")).tap do |d|
+  dispatcher ||= Dispatcher.new(forced: arg_value("--context"), modules: Modules.load).tap do |d|
     d.progress = lambda do |seconds|
       $stderr.print "\r⏳ Copilot sta lavorando… #{seconds / 60}:#{format('%02d', seconds % 60)}" if $stderr.tty?
     end

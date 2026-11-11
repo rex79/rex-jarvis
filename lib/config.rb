@@ -26,7 +26,12 @@ module Config
   SITE_DIR      = File.expand_path(ENV.fetch("JARVIS_SITE_DIR", "~/jarvis-site"))
   SOURCES_FILE  = File.expand_path("../config/sources.yml", __dir__)
 
+  # Moduli opzionali accesi su questa macchina (vedi lib/modules.rb), es. "dispensa,voce".
+  MODULES = ENV.fetch("JARVIS_MODULES", "").split(/[\s,]+/).reject(&:empty?)
+
   # Dashboard sulla rete di casa (--hud --lan): indirizzo di ascolto e nomi in più accettati come Host.
   HUD_BIND = ENV.fetch("JARVIS_HUD_BIND", "0.0.0.0")
   HUD_HOSTS = ENV.fetch("JARVIS_HUD_HOSTS", "").split(/[\s,]+/).reject(&:empty?)
+  # HTTPS con un certificato generato dal Mac mini: serve al browser del tablet per concedere il microfono.
+  HUD_TLS = %w[1 true si sì yes].include?(ENV.fetch("JARVIS_HUD_TLS", "").downcase)
 end

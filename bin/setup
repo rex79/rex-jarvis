@@ -70,7 +70,7 @@ CONF
 fi
 
 echo "6. Test"
-for t in test/test_*.rb; do
+for t in test/test_*.rb modules/*/test_*.rb; do
   MT_NO_PLUGINS=1 ruby "$t" >/dev/null 2>&1 && ok "$(basename "$t")" || die "$(basename "$t") fallito: lancia MT_NO_PLUGINS=1 ruby $t per i dettagli"
 done
 

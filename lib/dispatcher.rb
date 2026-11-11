@@ -1,12 +1,14 @@
 require_relative "agent"
 require_relative "router"
 require_relative "intents"
+require_relative "modules"
 require_relative "tools/copilot"
 require_relative "copilot/session"
 
 # Riceve un comando (scritto o, in futuro, trascritto dalla voce) e lo esegue:
 #   1. comandi musicali semplici → subito, senza modello (contesto personale);
-#   2. altrimenti il router sceglie il contesto e risponde l'agente di quel contesto.
+#   2. comandi riconosciuti da un modulo acceso (JARVIS_MODULES) → subito, sempre nel contesto personale;
+#   3. altrimenti il router sceglie il contesto e risponde l'agente di quel contesto.
 class Dispatcher
   Reply = Struct.new(:label, :text)
 
@@ -14,10 +16,11 @@ class Dispatcher
 
   attr_reader :session
 
-  def initialize(forced: nil, agent_factory: nil, music: Music, copilot: Copilot, session: nil)
+  def initialize(forced: nil, agent_factory: nil, music: Music, copilot: Copilot, session: nil, modules: Modules.none)
     @forced = forced && Contexts.fetch(forced).id
     @session = session || CopilotSession.new(copilot: copilot)
-    @agent_factory = agent_factory || ->(context) { Agent.new(context, copilot_session: @session) }
+    @modules = modules
+    @agent_factory = agent_factory || ->(context) { Agent.new(context, copilot_session: @session, modules: @modules) }
     @music = music
     @agents = {}
   end
@@ -33,6 +36,12 @@ class Dispatcher
       @session.reset
       action, app = intent
       return Reply.new("personale · comando rapido", @music.control(action, nil, app: app))
+    end
+
+    # I moduli (dispensa, …) sono personali: mai con parole o prefisso di lavoro, né a metà di una
+    # conversazione con Copilot.
+    if personal_command?(text) && (name, reply = @modules.handle(text.to_s.sub(/\A\s*(personale|personal)\s*[:,]\s*/i, "")))
+      return Reply.new("personale · #{name}", reply)
     end
 
     route = route_for(text)
@@ -52,6 +61,12 @@ class Dispatcher
   end
 
   private
+
+  def personal_command?(text)
+    return false if @forced == :work || text.to_s.match?(/\A\s*(lavoro|work)\s*[:,]/i)
+
+    @forced == :personal || (Router.hits(text, Router::WORK_WORDS).zero? && !@session.active?)
+  end
 
   # Con una conversazione Copilot aperta, i messaggi senza prefisso né parole personali restano
   # nel contesto di lavoro senza chiedere al modello locale.

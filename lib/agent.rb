@@ -4,6 +4,7 @@ require_relative "config"
 require_relative "ollama"
 require_relative "privacy"
 require_relative "contexts"
+require_relative "modules"
 require_relative "tools/filesystem"
 require_relative "tools/notes"
 require_relative "tools/music"
@@ -49,8 +50,9 @@ class Agent
 
   attr_reader :context
 
-  def initialize(context = Contexts.personal, llm: nil, copilot_session: nil)
+  def initialize(context = Contexts.personal, llm: nil, copilot_session: nil, modules: Modules.none)
     @context = context
+    @modules = context.id == :personal ? modules : Modules.none # i moduli sono solo personali
     @copilot_session = copilot_session || CopilotSession.new
     # Anche gli embedding delle note passano da OLLAMA_URL: con local_only deve essere locale.
     Privacy.assert_local!(Config::OLLAMA_URL, "Il contesto #{context.label}") if context.local_only
@@ -62,7 +64,8 @@ class Agent
     @tools = note_tools
     @tools << music_tool if context.id == :personal
     @tools << copilot_tool if context.id == :work && @copilot_session.configured?
-    @messages = [{ role: "system", content: PROMPTS.fetch(context.id) }]
+    @tools += @modules.tools
+    @messages = [{ role: "system", content: [PROMPTS.fetch(context.id), @modules.prompt].reject(&:empty?).join }]
   end
 
   def tool_names
@@ -144,6 +147,7 @@ class Agent
         when "current_time"  then Time.now.strftime("%A %d/%m/%Y %H:%M")
         when "music_control" then Music.control(args.fetch("action"), args["query"], app: args["app"])
         when "ask_copilot" then @copilot_session.ask(args.fetch("request"))
+        else @modules.call_tool(name, args)
         end
       rescue StandardError => e
         # L'errore torna al modello, che può correggersi, invece di far crollare Jarvis.

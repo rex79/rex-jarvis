@@ -94,6 +94,7 @@ function render(s) {
 
   renderDigest(s.digest || {});
   if (paired) renderHome(s);
+  statusListeners.forEach((listener) => listener(s));
 }
 
 function renderDigest(dg) {
@@ -172,29 +173,36 @@ function log(label, text, kind) {
   while ($('log').children.length > 12) $('log').lastChild.remove();
 }
 
+// Manda un comando a Jarvis e mostra la risposta nel registro. Restituisce la risposta, o null se fallisce.
+async function ask(text) {
+  log('Tu', text);
+  setState('thinking', 'ELABORAZIONE');
+  try {
+    const reply = await api('/api/ask', { text });
+    log(`Jarvis · ${reply.label}`, reply.text, reply.label.startsWith('lavoro') ? 'work' : '');
+    setCopilot(reply.copilot_active);
+    setState('idle', 'IN ASCOLTO');
+    return reply;
+  } catch (e) {
+    log('Errore', e.message, 'err');
+    setState('error', 'ERRORE');
+    setTimeout(() => { if (document.body.dataset.state === 'error') setState('idle', 'IN ASCOLTO'); }, 2500);
+    return null;
+  } finally {
+    refresh();
+  }
+}
+
 $('console').addEventListener('submit', async (event) => {
   event.preventDefault();
   const input = $('command');
   const text = input.value.trim();
   if (!text) return;
   input.value = '';
-  log('Tu', text);
-  setState('thinking', 'ELABORAZIONE');
   input.disabled = true;
-  try {
-    const reply = await api('/api/ask', { text });
-    log(`Jarvis · ${reply.label}`, reply.text, reply.label.startsWith('lavoro') ? 'work' : '');
-    setCopilot(reply.copilot_active);
-    setState('idle', 'IN ASCOLTO');
-  } catch (e) {
-    log('Errore', e.message, 'err');
-    setState('error', 'ERRORE');
-    setTimeout(() => setState('idle', 'IN ASCOLTO'), 2500);
-  } finally {
-    input.disabled = false;
-    input.focus();
-    refresh();
-  }
+  await ask(text);
+  input.disabled = false;
+  if (!paired) input.focus(); // sul tablet riaprirebbe la tastiera
 });
 
 document.querySelectorAll('[data-music]').forEach((button) => {
@@ -232,7 +240,7 @@ function setView(view) {
 
 function canRest() {
   return $('rest').hidden && !document.querySelector('dialog[open]') && !$('command').value
-    && document.body.dataset.state !== 'thinking';
+    && !['thinking', 'listening', 'speaking'].includes(document.body.dataset.state);
 }
 
 function rest() {
@@ -292,6 +300,45 @@ $('pair-form').addEventListener('submit', async (event) => {
     error.hidden = false;
   }
 });
+
+// Quello che un modulo (modules/<nome>/hud/hud.js) può usare della dashboard, senza toccare questo file.
+const statusListeners = [];
+window.Jarvis = {
+  $, api, ask, log, setState, refresh, paired,
+  token: () => token,
+  touch() { lastTouch = Date.now(); },
+  onStatus(listener) { statusListeners.push(listener); },
+  // Aggiunge una sezione: riquadro, scheda del tablet e riquadro nella schermata Casa.
+  // Restituisce { panel, tile } dove tile è il paragrafo di riepilogo nella Casa.
+  addView({ id, title, tab }) {
+    const panel = document.createElement('section');
+    panel.className = 'panel';
+    panel.dataset.view = id;
+    const heading = document.createElement('h2');
+    heading.textContent = title;
+    panel.append(heading);
+    document.querySelector('.layout > aside.col:last-of-type').prepend(panel);
+
+    const tabButton = document.createElement('button');
+    tabButton.type = 'button';
+    tabButton.dataset.go = id;
+    tabButton.textContent = tab || title;
+    $('tabs').append(tabButton);
+
+    const tileButton = document.createElement('button');
+    tileButton.type = 'button';
+    tileButton.className = 'tile';
+    tileButton.dataset.go = id;
+    const tileTitle = document.createElement('h2');
+    tileTitle.textContent = title;
+    const tile = document.createElement('p');
+    tileButton.append(tileTitle, tile);
+    $('home').insertBefore(tileButton, $('home').querySelector('.tile.wide'));
+
+    if (paired) [tabButton, tileButton].forEach((el) => el.addEventListener('click', () => setView(id)));
+    return { panel, tile };
+  },
+};
 
 tick();
 setInterval(tick, 1000);

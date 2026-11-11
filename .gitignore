@@ -12,3 +12,6 @@
 .venv/
 __pycache__/
 *.pyc
+
+# Ambiente Python della trascrizione vocale (bin/setup-voce)
+.venv-voce/

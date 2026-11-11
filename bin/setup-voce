@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Prepara la trascrizione vocale locale (modulo voce): faster-whisper in un ambiente Python isolato
+# (.venv-voce nel repo) e il modello Whisper scaricato una volta da Hugging Face (~/.cache/huggingface).
+# JARVIS_VOCE_MODEL sceglie il modello (default: base; tiny è più veloce e meno preciso, small più preciso ma molto più lento).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+MODEL="${JARVIS_VOCE_MODEL:-base}"
+PY="$(command -v python3.12 || command -v python3.11 || command -v python3.13 || true)"
+[[ -n "$PY" ]] || { echo "❌ serve Python 3.11, 3.12 o 3.13 (sudo apt install python3.12-venv)"; exit 1; }
+
+[[ -x .venv-voce/bin/python ]] || "$PY" -m venv .venv-voce
+.venv-voce/bin/pip install -q --upgrade pip
+# av 19 ha tolto un parametro che faster-whisper usa ancora per leggere l'audio.
+.venv-voce/bin/pip install -q faster-whisper "av<19"
+echo "Scarico e provo il modello Whisper \"$MODEL\"…"
+.venv-voce/bin/python -I -c 'import sys; from faster_whisper import WhisperModel; WhisperModel(sys.argv[1], device="cpu", compute_type="int8")' "$MODEL"
+echo "✅ Voce pronta (modello $MODEL). Aggiungi voce a JARVIS_MODULES in ~/.jarvis_env e rilancia bin/hud-service install"

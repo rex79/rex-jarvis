@@ -1,0 +1,14 @@
+.voice-toggle {
+  position: fixed; right: 24px; bottom: 24px; z-index: 5; min-width: 132px; min-height: 60px; padding: 14px 22px;
+  font-size: 15px; letter-spacing: .18em; color: var(--bg); background: var(--cyan); border-color: var(--cyan);
+  border-radius: 999px; box-shadow: 0 0 18px rgba(94,214,255,.45);
+}
+.voice-toggle::before { content: "● "; }
+.voice-toggle[data-state="listening"] { background: var(--green); border-color: var(--green); animation: voice-pulse 1.4s ease-in-out infinite; }
+.voice-toggle[data-state="thinking"] { background: var(--amber); border-color: var(--amber); }
+.voice-toggle[data-state="speaking"] { background: var(--cyan-soft); border-color: var(--cyan-soft); }
+body[data-mode="personal"] .voice-toggle { bottom: 96px; min-height: 68px; font-size: 16px; } /* sopra le schede */
+body.resting .voice-toggle { visibility: hidden; }
+body[data-state="listening"] .r2 { animation-duration: 6s; }
+body[data-state="speaking"] .core-glow { animation-duration: 1.2s; }
+@keyframes voice-pulse { 0%, 100% { box-shadow: 0 0 10px rgba(94,255,177,.4); } 50% { box-shadow: 0 0 30px rgba(94,255,177,.9); } }
