@@ -156,7 +156,26 @@ async function refresh() {
   }
 }
 
-function log(label, text, kind) {
+// Schermo intero: sul tablet toglie le barre del browser. Si esce con lo stesso tasto.
+if (document.fullscreenEnabled) {
+  const button = $('fullscreen');
+  button.hidden = false;
+  button.addEventListener('click', () => {
+    (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen())
+      .catch((e) => log('Schermo intero', e.message, 'err'));
+  });
+  document.addEventListener('fullscreenchange', () => { button.textContent = document.fullscreenElement ? 'Esci' : 'Schermo intero'; });
+}
+
+// Un link di una risposta: i moduli possono aprirlo a modo loro (es. in un riquadro interno);
+// se nessuno lo fa si apre in una nuova scheda. Sono ammessi solo indirizzi https.
+const linkHandlers = [];
+function openLink(link) {
+  if (!/^https:\/\//i.test(link.url)) return;
+  if (!linkHandlers.some((handler) => handler(link))) window.open(link.url, '_blank', 'noopener');
+}
+
+function log(label, text, kind, links) {
   const li = document.createElement('li');
   if (kind) li.className = kind;
   const who = document.createElement('span');
@@ -169,6 +188,18 @@ function log(label, text, kind) {
   body.className = 'text';
   body.textContent = text;
   li.append(who, body);
+  if (links && links.length) {
+    const row = document.createElement('div');
+    row.className = 'links';
+    links.forEach((link) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = link.title || link.url;
+      button.addEventListener('click', () => openLink(link));
+      row.append(button);
+    });
+    li.append(row);
+  }
   $('log').prepend(li);
   while ($('log').children.length > 12) $('log').lastChild.remove();
 }
@@ -179,7 +210,7 @@ async function ask(text) {
   setState('thinking', 'ELABORAZIONE');
   try {
     const reply = await api('/api/ask', { text });
-    log(`Jarvis · ${reply.label}`, reply.text, reply.label.startsWith('lavoro') ? 'work' : '');
+    log(`Jarvis · ${reply.label}`, reply.text, reply.label.startsWith('lavoro') ? 'work' : '', reply.links);
     setCopilot(reply.copilot_active);
     setState('idle', 'IN ASCOLTO');
     return reply;
@@ -240,7 +271,7 @@ function setView(view) {
 
 function canRest() {
   return $('rest').hidden && !document.querySelector('dialog[open]') && !$('command').value
-    && !['thinking', 'listening', 'speaking'].includes(document.body.dataset.state);
+    && !['thinking', 'listening', 'speaking'].includes(document.body.dataset.state) && !document.body.dataset.busy;
 }
 
 function rest() {
@@ -304,7 +335,9 @@ $('pair-form').addEventListener('submit', async (event) => {
 // Quello che un modulo (modules/<nome>/hud/hud.js) può usare della dashboard, senza toccare questo file.
 const statusListeners = [];
 window.Jarvis = {
-  $, api, ask, log, setState, refresh, paired,
+  $, api, ask, log, setState, refresh, paired, openLink,
+  onLink(handler) { linkHandlers.push(handler); }, // handler(link) → true se l'ha aperto lui
+  busy(on) { if (on) document.body.dataset.busy = '1'; else delete document.body.dataset.busy; }, // niente schermata a riposo
   token: () => token,
   touch() { lastTouch = Date.now(); },
   onStatus(listener) { statusListeners.push(listener); },

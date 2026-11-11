@@ -139,6 +139,20 @@ class HudModulesTest < Minitest::Test
     assert_equal 404, @server.route("POST", "/api/modules/spento/size", headers, "abc").status
   end
 
+  def test_module_links_reach_the_dashboard_and_only_declared_sites_can_be_framed
+    linker = Class.new(Modules::Base) do
+      def handle(_text) = Modules::Reply.new("ecco", [{ title: "Ricetta", url: "https://example.com/r", frame: true }])
+      def frame_sources = ["https://example.com", "http://insicuro.example", "https://example.com/percorso", "javascript:alert(1)"]
+    end.new
+    modules = Modules::Set.new("linker" => linker)
+    assert_equal ["https://example.com"], modules.frame_sources
+    server = HudServer.new(port: 7777, token: TOKEN, modules: modules, dispatcher: Dispatcher.new(forced: "personal", modules: modules))
+    reply = JSON.parse(server.route("POST", "/api/ask", headers, JSON.generate(text: "qualcosa")).body)
+    assert_equal [{ "title" => "Ricetta", "url" => "https://example.com/r", "frame" => true }], reply["links"]
+    assert_equal "#{HudServer::CSP}; frame-src https://example.com", server.send(:csp)
+    assert_equal HudServer::CSP, HudServer.new(port: 7777, token: TOKEN).send(:csp) # senza moduli nessun sito esterno
+  end
+
   def test_only_module_apis_accept_larger_bodies
     assert_equal 100_000, @server.send(:max_body, "/api/modules/echo/size")
     assert_equal HudServer::MAX_BODY, @server.send(:max_body, "/api/ask")

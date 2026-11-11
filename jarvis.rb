@@ -108,7 +108,7 @@ handle = lambda do |text|
   end
   reply = dispatcher.handle(text)
   puts "[#{reply.label}]"
-  reply.text
+  [reply.text, *Array(reply.links).map { |link| "→ #{link[:title]}: #{link[:url]}" }].join("\n")
 end
 
 begin

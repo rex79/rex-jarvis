@@ -10,7 +10,7 @@ require_relative "copilot/session"
 #   2. comandi riconosciuti da un modulo acceso (JARVIS_MODULES) → subito, sempre nel contesto personale;
 #   3. altrimenti il router sceglie il contesto e risponde l'agente di quel contesto.
 class Dispatcher
-  Reply = Struct.new(:label, :text)
+  Reply = Struct.new(:label, :text, :links)
 
   attr_accessor :progress # chiamato con i secondi trascorsi mentre Copilot lavora
 
@@ -41,7 +41,7 @@ class Dispatcher
     # I moduli (dispensa, …) sono personali: mai con parole o prefisso di lavoro, né a metà di una
     # conversazione con Copilot.
     if personal_command?(text) && (name, reply = @modules.handle(text.to_s.sub(/\A\s*(personale|personal)\s*[:,]\s*/i, "")))
-      return Reply.new("personale · #{name}", reply)
+      return Reply.new("personale · #{name}", reply.text, reply.links)
     end
 
     route = route_for(text)

@@ -3,17 +3,24 @@ require_relative "config"
 # Moduli opzionali: ogni funzione "di casa" vive in modules/<nome>/ con il suo codice, i suoi dati,
 # il suo pezzo di dashboard e i suoi test, e si accende elencandola in JARVIS_MODULES
 # (es. JARVIS_MODULES=dispensa,voce in ~/.jarvis_env). Il nucleo non sa cosa fanno: chiede soltanto
-#   - handle(text): un comando riconosciuto con regole fisse, senza modello → testo, oppure nil;
+#   - handle(text): un comando riconosciuto con regole fisse, senza modello → testo (o Modules::Reply
+#     con dei link da mostrare sotto la risposta), oppure nil;
 #   - tools / call_tool / prompt: strumenti in più per l'agente personale;
 #   - api(method, path, body, headers): le sue API sotto /api/modules/<nome>/…;
 #   - status: cosa mostrare nella dashboard (dentro /api/status → modules.<nome>);
 #   - max_body: quanto può pesare una richiesta alle sue API;
-#   - start: cosa preparare quando parte la dashboard (es. caricare un modello).
+#   - start: cosa preparare quando parte la dashboard (es. caricare un modello);
+#   - frame_sources: i siti (https://dominio) che la dashboard può mostrare in un riquadro interno.
 # I file in modules/<nome>/hud/ (hud.js, hud.css) vengono caricati dalla dashboard.
 # I moduli valgono solo nel contesto personale: quello di lavoro non li vede.
 module Modules
   DIR = File.expand_path("../modules", __dir__)
   NAME = /\A[a-z][a-z0-9_]{0,30}\z/
+
+  # Risposta con link: ognuno è { title:, url:, frame: } (frame: aprilo nel riquadro interno della dashboard).
+  Reply = Struct.new(:text, :links) do
+    def to_s = text.to_s
+  end
 
   class Base
     def handle(_text) = nil
@@ -24,6 +31,7 @@ module Modules
     def status = nil
     def max_body = nil
     def start = nil
+    def frame_sources = []
   end
 
   # I moduli accesi, nell'ordine di JARVIS_MODULES.
@@ -42,12 +50,13 @@ module Modules
     def handle(text)
       @modules.each do |name, mod|
         reply = mod.handle(text)
-        return [name, reply] if reply
+        return [name, reply.is_a?(Reply) ? reply : Reply.new(reply.to_s, [])] if reply
       end
       nil
     end
 
     def start = @modules.each_value(&:start)
+    def frame_sources = @modules.values.flat_map(&:frame_sources).grep(%r{\Ahttps://[a-z0-9.-]+\z}).uniq
     def tools = @modules.values.flat_map(&:tools)
     def prompt = @modules.values.filter_map(&:prompt).join("\n")
 

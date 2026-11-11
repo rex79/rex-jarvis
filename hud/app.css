@@ -114,6 +114,10 @@ button:disabled { opacity: .4; cursor: wait; }
 .log li.work .tag { color: var(--amber); }
 .log li.err { border-left-color: var(--red); }
 .log .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.log .links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.log .links button { text-transform: none; letter-spacing: .04em; font-size: 13px; }
+#fullscreen { font-size: 11px; padding: 6px 10px; }
+body[data-mode="personal"] #fullscreen { min-height: 44px; font-size: 12px; }
 
 .digest { gap: 14px; }
 .digest .title { display: block; font-size: 13px; line-height: 1.4; }
