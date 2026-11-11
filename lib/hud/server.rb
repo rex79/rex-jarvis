@@ -2,7 +2,6 @@ require "socket"
 require "json"
 require "securerandom"
 require_relative "status"
-require_relative "trading_job"
 require_relative "pairing"
 require_relative "../tools/music"
 require_relative "../tools/copilot"
@@ -29,12 +28,11 @@ class HudServer
   attr_reader :token, :port
 
   def initialize(port: 7777, dispatcher: nil, status: HudStatus.new, music: Music, token: SecureRandom.hex(24),
-                 trading: TradingJob.new, bind: "127.0.0.1", hosts: %w[localhost 127.0.0.1], pairing: nil)
+                 bind: "127.0.0.1", hosts: %w[localhost 127.0.0.1], pairing: nil)
     @port = port
     @bind = bind
     @hosts = hosts.map(&:downcase)
     @pairing = pairing
-    @trading = trading
     @dispatcher = dispatcher
     @status = status
     @music = music
@@ -48,13 +46,12 @@ class HudServer
     addresses = Socket.ip_address_list.select(&:ipv4_private?).map(&:ip_address)
     name = Socket.gethostname.split(".").first
     { bind: Config::HUD_BIND, hosts: ["localhost", "127.0.0.1", name, "#{name}.local", *addresses, *Config::HUD_HOSTS].uniq,
-      pairing: HudPairing.new, trading: TradingJob.new(remote: TradingLocal), status: HudStatus.new(personal: true) }
+      pairing: HudPairing.new, status: HudStatus.new(personal: true) }
   end
 
   def start
     $stdout.sync = true
     server = TCPServer.new(@bind, @port)
-    @trading.sync_later
     where = @pairing ? "rete di casa, solo dispositivi abbinati" : "solo questo computer"
     puts "🤖 Jarvis HUD su http://#{@pairing ? @hosts.last : 'localhost'}:#{@port} (#{where}). Ctrl+C per fermarlo."
     loop do
@@ -80,10 +77,7 @@ class HudServer
     when ["GET", "/"] then page
     when ["GET", "/app.css"], ["GET", "/app.js"] then asset(path)
     when ["POST", "/api/pair"] then @pairing ? pair(headers, body) : Response.new(404, "text/plain", "non trovato")
-    when ["GET", "/api/status"]
-      api(headers) { @status.snapshot.merge(copilot_active: copilot_active?, trading_job: @trading.state) }
-    when ["POST", "/api/trading"] then api(headers, post: true) { @trading.start }
-    when ["GET", "/api/trading/note"] then api(headers) { Trading.latest_note || { name: nil, text: "" } }
+    when ["GET", "/api/status"] then api(headers) { @status.snapshot.merge(copilot_active: copilot_active?) }
     when ["POST", "/api/ask"] then api(headers, post: true) { ask(parse(body)["text"]) }
     when ["POST", "/api/music"] then api(headers, post: true) { music(parse(body)) }
     else Response.new(404, "text/plain", "non trovato")

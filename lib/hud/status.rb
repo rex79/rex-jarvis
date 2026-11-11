@@ -6,8 +6,6 @@ require "etc"
 require_relative "../config"
 require_relative "../privacy"
 require_relative "../site"
-require_relative "../signals"
-require_relative "../trading"
 require_relative "../tools/music"
 require_relative "digest_feed"
 
@@ -15,12 +13,9 @@ require_relative "digest_feed"
 # (Ollama spento, app musicale senza permesso) restituisce un errore leggibile e le altre continuano.
 class HudStatus
   def initialize(music: Music, ollama_url: Config::OLLAMA_URL, digest_dir: File.join(Config::BRAIN_DIR, "digest"),
-                 feed: DigestFeed.new, signals_file: File.join(Signals.dir, "latest.json"),
-                 trading_file: File.join(Trading.dir, "latest.json"), personal: false)
+                 feed: DigestFeed.new, personal: false)
     @personal = personal
     @feed = feed
-    @trading_file = trading_file
-    @signals_file = signals_file
     @music = music
     @ollama_url = ollama_url
     @digest_dir = digest_dir
@@ -34,9 +29,7 @@ class HudStatus
       privacy: privacy,
       ollama: safe { ollama },
       music: @personal ? nil : safe { @music.now_playing },
-      digest: safe { digest },
-      signals: safe { Signals.latest(@signals_file) },
-      trading: safe { Trading.latest(@trading_file) }
+      digest: safe { digest }
     }
   end
 

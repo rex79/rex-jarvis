@@ -175,11 +175,6 @@ class HudLanTest < Minitest::Test
     refute_includes snap[:privacy].keys, :work_dir
     refute_includes snap[:privacy].keys, :work_model
   end
-
-  def test_trading_runs_locally_through_the_same_job
-    assert TradingLocal.configured?
-    assert_nil TradingLocal.latest
-  end
 end
 
 class MusicNowPlayingTest < Minitest::Test
@@ -220,15 +215,6 @@ class HudStatusTest < Minitest::Test
       assert_equal "locale", digest[:origin]
       assert_equal [{ title: "Nuova notizia", source: "Anthropic", category: "Ufficiali", url: "https://a.com/2",
                       summary: "Testo.", why: nil, low: false }], digest[:items]
-    end
-  end
-
-  def test_signals_panel_reads_latest_json_or_stays_empty
-    Dir.mktmpdir do |dir|
-      file = File.join(dir, "latest.json")
-      assert_nil HudStatus.new(signals_file: file, ollama_url: "http://127.0.0.1:1").snapshot[:signals]
-      File.write(file, JSON.generate(signals: [{ product: "BTC-EUR", action: "entra", label: "ENTRA" }]))
-      assert_equal "ENTRA", HudStatus.new(signals_file: file, ollama_url: "http://127.0.0.1:1").snapshot[:signals]["signals"][0]["label"]
     end
   end
 end
