@@ -93,105 +93,7 @@ function render(s) {
   setText('music-state', mu.error ? mu.error : `${mu.app || ''} · ${mu.state || ''}`);
 
   renderDigest(s.digest || {});
-  renderSignals(s.signals);
-  renderTrading(s.trading, s.trading_job || {});
   if (paired) renderHome(s);
-}
-
-const dayLabel = (iso) => new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
-const clock = (seconds) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-const DECISION_CLASS = { ACQUISTA: 'up', AUMENTA: 'up', MANTIENI: 'hold', RIDUCI: 'down', VENDI: 'down' };
-let tradingTimer = null;
-
-function renderTrading(tr, job) {
-  setText('trading-date', tr && tr.date ? `· ${dayLabel(tr.date)}` : '');
-  const button = $('trading-run');
-  button.disabled = !!job.running || !job.configured;
-  button.title = job.configured ? 'Lancia TradingAgents sul Mac mini' : 'Imposta JARVIS_TRADING_SSH e la chiave SSH';
-
-  clearInterval(tradingTimer);
-  const state = $('trading-state');
-  state.className = 'small' + (job.error ? ' err' : '');
-  if (job.running) {
-    const started = new Date(job.started_at);
-    const update = () => { state.textContent = `In corso sul Mac mini · ${clock(Math.max(0, Math.round((Date.now() - started) / 1000)))}`; };
-    update();
-    tradingTimer = setInterval(update, 1000);
-  } else if (job.error) {
-    state.textContent = `Errore: ${job.error}`;
-  } else if (job.finished_at) {
-    state.textContent = `Aggiornata alle ${new Date(job.finished_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`;
-  } else {
-    state.textContent = job.configured ? 'Pronta' : 'Mac mini non configurato';
-  }
-
-  const list = $('trading');
-  const items = (tr && tr.tickers) || [];
-  if (!items.length) {
-    const li = document.createElement('li');
-    li.className = 'dim';
-    li.textContent = tr && tr.error ? 'Analisi non disponibile.' : 'Nessuna analisi: premi Aggiorna.';
-    list.replaceChildren(li);
-    return;
-  }
-  list.replaceChildren(...items.map((it) => {
-    const li = document.createElement('li');
-    const head = document.createElement('div');
-    head.className = 'metric';
-    const name = document.createElement('span');
-    name.textContent = it.ticker;
-    const action = document.createElement('b');
-    action.className = `action ${it.error ? 'down' : (DECISION_CLASS[it.decision] || 'hold')}`;
-    action.textContent = it.error ? 'N/D' : it.decision;
-    head.append(name, action);
-    li.append(head);
-    const text = it.error || (it.summary || '').replace(/\*\*/g, ''); // grassetti Markdown come testo semplice
-    if (text) {
-      const p = document.createElement('p');
-      p.className = 'summary';
-      p.textContent = text;
-      p.title = 'Clic per espandere';
-      p.addEventListener('click', () => p.classList.toggle('open'));
-      li.append(p);
-    }
-    return li;
-  }));
-}
-
-const euro = (v) => (v == null ? '–' : v.toLocaleString('it-IT', { maximumFractionDigits: 2 }));
-
-function renderSignals(sg) {
-  const list = $('signals');
-  const items = (sg && sg.signals) || [];
-  const first = items.find((it) => it.date);
-  setText('signals-date', first ? `· ${new Date(first.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}` : '');
-  if (!items.length) {
-    const li = document.createElement('li');
-    li.className = 'dim';
-    li.textContent = sg && sg.error ? 'Segnali non disponibili.' : 'Nessun segnale: ruby jarvis.rb --signals';
-    list.replaceChildren(li);
-    return;
-  }
-  list.replaceChildren(...items.map((it) => {
-    const li = document.createElement('li');
-    const head = document.createElement('div');
-    head.className = 'metric';
-    const name = document.createElement('span');
-    name.textContent = it.product;
-    const action = document.createElement('b');
-    action.className = `action ${it.action || 'error'}`;
-    action.textContent = it.error ? 'N/D' : it.label;
-    head.append(name, action);
-    const detail = document.createElement('div');
-    detail.className = 'dim small';
-    detail.textContent = it.error
-      ? it.error
-      : [`chiusura ${euro(it.close)}`, it.stop != null ? `stop ${euro(it.stop)}` : null,
-         it.since ? `dal ${new Date(it.since).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}` : null]
-          .filter(Boolean).join(' · ');
-    li.append(head, detail);
-    return li;
-  }));
 }
 
 function renderDigest(dg) {
@@ -309,83 +211,8 @@ document.querySelectorAll('[data-music]').forEach((button) => {
   });
 });
 
-// Sul tablet il pulsante è a portata di tutti e ogni analisi costa credito: serve un secondo tocco.
-let tradingArmed = null;
-
-$('trading-run').addEventListener('click', async () => {
-  const button = $('trading-run');
-  if (paired && !tradingArmed) {
-    button.textContent = 'Conferma?';
-    tradingArmed = setTimeout(() => { tradingArmed = null; button.textContent = 'Aggiorna'; }, 4000);
-    return;
-  }
-  clearTimeout(tradingArmed);
-  tradingArmed = null;
-  button.textContent = 'Aggiorna';
-  $('trading-run').disabled = true;
-  try {
-    await api('/api/trading', {});
-    log('Analisi titoli', 'Avviata sul Mac mini: il riquadro si aggiorna quando ha finito.');
-  } catch (e) {
-    log('Analisi titoli', e.message, 'err');
-  } finally {
-    refresh();
-  }
-});
-
-// Nota completa dell'ultima analisi: Markdown minimo reso con elementi e textContent, mai come HTML.
-function renderNote(text) {
-  const blocks = [];
-  let list = null;
-  text.split('\n').forEach((raw) => {
-    const line = raw.replace(/\*\*/g, '').trimEnd();
-    const heading = line.match(/^(#{1,3})\s+(.*)$/);
-    if (!line.trim()) { list = null; return; }
-    let el;
-    if (heading) {
-      el = document.createElement(`h${heading[1].length + 2}`);
-      el.textContent = heading[2];
-      list = null;
-    } else if (/^\s*[-*]\s+/.test(line)) {
-      if (!list) { list = document.createElement('ul'); blocks.push(list); }
-      const li = document.createElement('li');
-      li.textContent = line.replace(/^\s*[-*]\s+/, '');
-      list.append(li);
-      return;
-    } else {
-      el = document.createElement(line.startsWith('>') ? 'blockquote' : 'p');
-      el.textContent = line.replace(/^>\s?/, '');
-      list = null;
-    }
-    blocks.push(el);
-  });
-  return blocks;
-}
-
-$('trading-read').addEventListener('click', async () => {
-  try {
-    const note = await api('/api/trading/note');
-    const body = $('trading-note');
-    if (note.text) {
-      body.replaceChildren(...renderNote(note.text));
-    } else {
-      const p = document.createElement('p');
-      p.textContent = 'Nessuna analisi ancora: premi Aggiorna.';
-      body.replaceChildren(p);
-    }
-    $('trading-dialog').showModal();
-    body.scrollTop = 0;
-  } catch (e) {
-    log('Analisi titoli', e.message, 'err');
-  }
-});
-$('trading-close').addEventListener('click', () => $('trading-dialog').close());
-$('trading-dialog').addEventListener('click', (event) => {
-  if (event.target === $('trading-dialog')) $('trading-dialog').close(); // clic fuori dal riquadro
-});
-
 document.addEventListener('keydown', (event) => {
-  if (event.key === '/' && document.activeElement !== $('command') && !$('trading-dialog').open) {
+  if (event.key === '/' && document.activeElement !== $('command') && !document.querySelector('dialog[open]')) {
     event.preventDefault();
     $('command').focus();
   }
@@ -421,35 +248,7 @@ function shiftRest() {
   $('rest-body').style.transform = `translate(${offset()}px, ${offset()}px)`;
 }
 
-function tileList(id, rows, empty) {
-  const items = rows.slice(0, 5).map(([name, value, kind]) => {
-    const li = document.createElement('li');
-    const label = document.createElement('span');
-    label.textContent = name;
-    const b = document.createElement('b');
-    b.className = `action ${kind || ''}`;
-    b.textContent = value;
-    li.append(label, b);
-    return li;
-  });
-  if (!items.length) {
-    const li = document.createElement('li');
-    li.className = 'dim';
-    li.textContent = empty;
-    items.push(li);
-  }
-  $(id).replaceChildren(...items);
-}
-
 function renderHome(s) {
-  const rows = ((s.trading && s.trading.tickers) || []).map((it) => (it.error
-    ? [it.ticker, 'N/D', 'down'] : [it.ticker, it.decision, DECISION_CLASS[it.decision] || 'hold']));
-  const job = s.trading_job || {};
-  const empty = job.running ? 'Analisi in corso…' : 'Nessuna analisi';
-  tileList('home-trading', rows, empty);
-  tileList('rest-trading', rows, empty);
-  tileList('home-signals', ((s.signals && s.signals.signals) || []).map((it) => (it.error
-    ? [it.product, 'N/D', 'error'] : [it.product, it.label, it.action])), 'Nessun segnale');
   const items = (s.digest && s.digest.items) || [];
   setText('home-digest', items.length ? `${s.digest.date || ''} · ${items.length === 1 ? '1 notizia' : `${items.length} notizie`}\n${items[0].title}` : 'Nessun digest');
   const sys = s.system || {};

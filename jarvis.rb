@@ -43,68 +43,6 @@ if ARGV.include?("--digest")
   exit
 end
 
-if ARGV.include?("--signals")
-  require_relative "lib/signals"
-  begin
-    path, reports = Signals.run
-  rescue Signals::Error, ArgumentError => e
-    abort "❌ #{e.message}"
-  end
-  reports.each do |r|
-    s = r.signal
-    puts r.error ? "#{s.product}: non disponibile (#{r.error})" : "#{s.product}: #{Signals::Strategy::ACTIONS[s.action]}"
-  end
-  puts "Segnali scritti in #{path}"
-  begin
-    puts Notes.build_index # rende i segnali ricercabili da search_notes
-  rescue StandardError => e
-    warn "⚠️  indicizzazione fallita (i segnali sono comunque salvati): #{e.message}"
-  end
-  exit
-end
-
-if ARGV.include?("--trading")
-  require_relative "lib/trading"
-  begin
-    path, reports = Trading.exclusive { Trading.run }
-  rescue Trading::Error, ArgumentError => e
-    abort "❌ #{e.message}"
-  end
-  reports.each { |r| puts r.error ? "#{r.ticker}: non disponibile (#{r.error})" : "#{r.ticker}: #{r.decision}" }
-  puts "Analisi scritta in #{path}"
-  Trading.index_later # l'indice delle note si aggiorna dopo, in background
-  puts "Indicizzazione avviata in background (log in ~/.jarvis/index.log)"
-  exit
-end
-
-# Lanciato dalla chiave SSH della dashboard (command= in authorized_keys): accetta solo "run" e "latest".
-if ARGV.include?("--trading-remote")
-  require_relative "lib/trading"
-  begin
-    puts JSON.generate(Trading.remote(ENV["SSH_ORIGINAL_COMMAND"]))
-  rescue Trading::Error, ArgumentError => e
-    puts JSON.generate(error: e.message)
-    exit 1
-  rescue StandardError => e # anche gli errori imprevisti arrivano leggibili alla dashboard
-    puts JSON.generate(error: "#{e.class}: #{utf8(e.message)[0, 300]}")
-    warn e.full_message(highlight: false)
-    exit 1
-  end
-  exit
-end
-
-if ARGV.include?("--telegram")
-  require_relative "lib/telegram_bot"
-  begin
-    TelegramBot.new.run
-  rescue TelegramBot::Error => e
-    abort "❌ #{e.message}"
-  rescue Interrupt
-    puts "\nBot Telegram fermato."
-  end
-  exit
-end
-
 if ARGV.include?("--copilot-login") || ARGV.include?("--copilot-status")
   require_relative "lib/tools/copilot"
   begin

@@ -153,132 +153,11 @@ non riempie passano alle migliori voci rimaste. Il totale è la somma dei posti 
 raggruppate in sezioni, con una barra per saltare dall'una all'altra e le card su più colonne sugli
 schermi larghi. I digest vecchi, senza categorie, restano una lista unica.
 
-## Segnali crypto (Coinbase)
-Jarvis calcola ogni giorno un segnale di trend sulle coppie di `config/signals.yml` (BTC-EUR ed ETH-EUR
-di default) e ti dice se la regola è dentro o fuori. **Non manda ordini e non ha chiavi di Coinbase**:
-l'ordine, se vuoi seguirlo, lo inserisci tu su Coinbase.
-
-```bash
-ruby jarvis.rb --signals    # scarica le candele, calcola segnale e backtest, scrive la nota
-```
-- **Dati:** candele giornaliere dall'API pubblica di Coinbase (nessuna chiave, nessun account, solo prezzi).
-  La candela del giorno in corso non è chiusa e non viene usata.
-- **Regola:** DENTRO quando la chiusura è sopra la media a 200 giorni e la media a 50 è sopra quella a 200,
-  FUORI altrimenti. Niente modelli: lo stesso storico dà sempre lo stesso segnale. Periodi, ATR e
-  commissione si cambiano in `config/signals.yml`.
-- **Segnale:** ENTRA o ESCI il giorno in cui la regola cambia stato, altrimenti RESTA DENTRO o RESTA FUORI,
-  con la data dell'ultimo cambio e uno stop indicativo (chiusura − 3 × ATR a 14 giorni).
-- **Backtest:** negli ultimi 5 anni, confrontato con "compra e tieni", con rendimento, ribasso massimo,
-  operazioni e tempo investito. Ogni segnale si esegue all'apertura del giorno dopo pagando la commissione
-  a ogni acquisto e vendita; lo stop non è simulato.
-- **Dove lo trovi:** `~/brain/signals/AAAA-MM-GG.md` (indicizzata, quindi `search_notes` la trova), un
-  riquadro nella dashboard (da `~/brain/signals/latest.json`) e l'output del comando.
-
-La candela giornaliera di Coinbase chiude alle 00:00 UTC; lancialo ogni mattina prima del digest con cron:
-```
-50 6 * * * cd ~/jarvis && ruby jarvis.rb --signals >> ~/jarvis-signals.log 2>&1
-```
-La dashboard legge i segnali della macchina su cui gira: sul Mac di lavoro basta lanciare lì lo stesso
-comando (sono solo prezzi pubblici).
-
-## Analisi titoli (TradingAgents)
-Ogni mattina Jarvis fa analizzare i titoli di `config/trading.yml` da
-[TradingAgents](https://github.com/TauricResearch/TradingAgents): più agenti AI (analisti di fondamentali,
-notizie, sentiment e tecnica, ricercatori toro e orso, trader, gestione del rischio) discutono ogni titolo
-e arrivano a una valutazione (ACQUISTA, AUMENTA, MANTIENI, RIDUCI, VENDI). **Non manda ordini e non ha
-chiavi di broker**: è ricerca automatica, non un consiglio di investimento, e i modelli possono sbagliare.
-
-Va sul Mac mini, nel contesto personale: al modello su OpenRouter arrivano solo ticker e dati di mercato
-pubblici (Yahoo Finance, SEC EDGAR, FRED), mai note o dati di lavoro.
-
-```bash
-bin/setup-trading            # scarica TradingAgents in ~/.jarvis/TradingAgents e lo installa in .venv-trading
-ruby jarvis.rb --trading     # analizza i titoli e scrive la nota
-```
-In `~/.jarvis_env` (la chiave `OPENROUTER_API_KEY` è quella del digest):
-```
-JARVIS_TRADING_MODEL=provider/modello        # economico e bravo con gli strumenti (tool calling)
-JARVIS_TRADING_DEEP_MODEL=provider/modello   # opzionale: per i ruoli che decidono, default il precedente
-JARVIS_TRADING_TICKERS=NVDA,ENEL.MI           # i tuoi titoli (ticker Yahoo Finance), vince su config/trading.yml
-SEC_EDGAR_USER_AGENT="Nome Cognome email"   # opzionale, consigliato da TradingAgents per i dati SEC
-```
-- **Costi:** ogni titolo richiede decine di chiamate al modello; Jarvis accetta al massimo 5 titoli e un
-  giro di discussione di default (`debate_rounds`). Controlla la spesa su openrouter.ai dopo i primi giorni.
-- **Versione:** `JARVIS_TRADING_REF=v0.x.y bin/setup-trading` installa un tag preciso; lo script stampa il
-  commit installato. Rilancialo per aggiornare.
-- **Dove lo trovi:** `~/brain/trading/AAAA-MM-GG.md` (indicizzata), `~/brain/trading/latest.json` per il
-  bot, e i report completi degli agenti in `~/.jarvis/trading`.
-
-Dopo aver scritto la nota, `--trading` avvia l'indicizzazione delle note in background a bassa
-priorità (`nice`, log in `~/.jarvis/index.log`): il risultato è subito disponibile anche se Ollama è lento.
-
-### Lanciarla dalla dashboard
-Nella dashboard del Mac di lavoro il riquadro **Analisi titoli** ha il pulsante **Aggiorna**: la
-dashboard chiede al Mac mini di lanciare l'analisi via SSH e mostra il risultato appena la nota è scritta
-(il Mac mini indicizza dopo, con calma). Usa una chiave SSH dedicata che sul Mac mini può eseguire **solo**
-`jarvis.rb --trading-remote` (accetta i soli comandi `run` e `latest`): nessuna porta nuova, nessuna shell.
-
-1. Sul Mac di lavoro crea la chiave (senza passphrase: la dashboard gira in background); `cat` ne mostra la parte pubblica:
-   ```bash
-   ssh-keygen -t ed25519 -N "" -C jarvis-trading -f ~/.ssh/jarvis_trading && cat ~/.ssh/jarvis_trading.pub
-   ```
-2. Sempre dal Mac di lavoro, aggiungi la chiave pubblica agli `authorized_keys` del Mac mini con il
-   comando forzato (la riga la compone il Mac mini, con il suo percorso di Ruby):
-   ```bash
-   ssh rex@192.168.2.26 'read -r key; echo "command=\"cd $HOME/jarvis && $(command -v ruby) jarvis.rb --trading-remote\",from=\"192.168.2.0/24\",restrict $key" >> ~/.ssh/authorized_keys' < ~/.ssh/jarvis_trading.pub
-   ssh rex@192.168.2.26 tail -1 ~/.ssh/authorized_keys   # command="cd /home/rex/jarvis && … --trading-remote",… ssh-ed25519 …
-   ```
-   La chiave privata (`~/.ssh/jarvis_trading`, senza `.pub`) non lascia mai il Mac di lavoro.
-3. Sul Mac di lavoro, in `~/.jarvis_env`: `JARVIS_TRADING_SSH=rex@192.168.2.26`
-   (`JARVIS_TRADING_SSH_KEY` se la chiave non è in `~/.ssh/jarvis_trading`), poi `bin/hud-service install`.
-4. Prova: `ssh -i ~/.ssh/jarvis_trading rex@192.168.2.26 latest` risponde con l'ultima analisi in JSON;
-   qualsiasi altro comando viene rifiutato. La prima volta conferma l'impronta del Mac mini con `yes`:
-   la dashboard usa SSH in modalità non interattiva e senza questo passaggio non si collega.
-
-All'avvio la dashboard copia l'ultima analisi del Mac mini (anche quella del cron) in `~/brain/trading`.
-
-La borsa americana chiude alle 22 italiane; lancialo ogni mattina con cron:
-```
-30 6 * * 1-5 cd ~/jarvis && ruby jarvis.rb --trading >> ~/jarvis-trading.log 2>&1
-```
-
-### Bot Telegram di Jarvis
-Un bot dedicato, separato da Hermes, che **legge soltanto** i report già pronti: non lancia analisi,
-non chiama modelli e non esegue comandi. Risponde solo agli ID ammessi e solo in chat privata.
-
-| Comando | Risposta |
-|---|---|
-| `/trading` | le valutazioni dell'ultima analisi |
-| `/trading NVDA` | la decisione finale motivata per un titolo |
-| `/segnali` | gli ultimi segnali crypto |
-
-1. Su Telegram, con @BotFather: `/newbot`, poi `/setjoingroups` → Disable.
-2. In `~/.jarvis_env`:
-   ```
-   JARVIS_TELEGRAM_TOKEN=...            # il token di @BotFather, mai in chat o nel repo
-   JARVIS_TELEGRAM_ALLOWED_USERS=123456 # il tuo ID numerico (lo stesso dato a Hermes)
-   ```
-3. Prova con `ruby jarvis.rb --telegram`, poi rendilo un servizio in
-   `~/.config/systemd/user/jarvis-telegram.service`:
-   ```ini
-   [Unit]
-   Description=Jarvis Telegram bot
-   After=network-online.target
-
-   [Service]
-   WorkingDirectory=%h/jarvis
-   ExecStart=/usr/bin/env ruby jarvis.rb --telegram
-   Restart=on-failure
-   RestartSec=30
-
-   [Install]
-   WantedBy=default.target
-   ```
-   ```bash
-   systemctl --user daemon-reload && systemctl --user enable --now jarvis-telegram
-   journalctl --user -u jarvis-telegram -f   # log: un ID non ammesso compare qui
-   ```
-Il bot usa il long polling verso Telegram: nessuna porta da aprire sul Mac mini.
+## Trading (progetto separato)
+L'analisi dei titoli con TradingAgents, i segnali crypto e il bot Telegram che li legge non fanno più
+parte di Jarvis: stanno in un repo a sé (`~/trading`, comando `ruby trading.rb`). Continuano a scrivere
+le note in `~/brain/trading` e `~/brain/signals`, che `--index` indicizza come tutte le altre: `search_notes`
+le trova ancora. La dashboard non le mostra più.
 
 ## Installazione su una nuova macchina
 ```bash
@@ -375,13 +254,12 @@ ruby jarvis.rb --hud-revoke                             # tablet perso: rimuove 
 Sul tablet apri `http://192.168.2.26:7777` e inserisci il codice. Dopo un `git pull` che cambia il codice
 Ruby rilancia `bin/hud-service install`.
 
-- **Interfaccia per il tocco:** una sezione alla volta con pulsanti grandi (Casa, Jarvis, Titoli, Segnali,
-  Digest, Sistema). Dopo 3 minuti senza tocchi compare la schermata a riposo con ora e ultime valutazioni,
-  che si sposta di poco ogni minuto per non segnare lo schermo; un tocco la chiude. **Aggiorna** chiede un
-  secondo tocco perché ogni analisi costa credito. Tenere acceso lo schermo spetta al tablet (app kiosk o
+- **Interfaccia per il tocco:** una sezione alla volta con pulsanti grandi (Casa, Jarvis, Digest, Sistema).
+  Dopo 3 minuti senza tocchi compare la schermata a riposo con l'ora, che si sposta di poco ogni minuto
+  per non segnare lo schermo; un tocco la chiude. Tenere acceso lo schermo spetta al tablet (app kiosk o
   impostazioni). Dopo un `git pull` che cambia solo HTML, CSS o JS basta ricaricare la pagina.
 - **Solo contesto personale:** i comandi non arrivano mai al contesto di lavoro né a Copilot e il pannello
-  Audio è nascosto (i comandi musicali funzionano solo su macOS). L'analisi titoli gira direttamente qui, senza SSH.
+  Audio è nascosto (i comandi musicali funzionano solo su macOS).
 - **Accesso:** la pagina non contiene token. Ogni dispositivo ne ottiene uno suo con il codice (5 tentativi,
   poi il codice non vale più); sul Mac mini, in `~/.jarvis/hud_pairing.json`, restano solo le impronte.
   Host accettati: indirizzi privati e nome della macchina, più `JARVIS_HUD_HOSTS`. `JARVIS_HUD_BIND` cambia
