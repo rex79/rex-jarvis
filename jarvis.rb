@@ -14,7 +14,7 @@ def utf8(text)
 end
 
 # Un'opzione scritta male (--hub-pair) non deve aprire la chat in silenzio: si ferma e suggerisce quella giusta.
-OPTIONS = %w[--index --site --publish --digest --dry-run --copilot-login --copilot-status --hud-pair --hud-revoke
+OPTIONS = %w[--index --site --publish --digest --finanza --dry-run --copilot-login --copilot-status --hud-pair --hud-revoke
              --hud --lan --port --context --ask].freeze
 WITH_VALUE = %w[--port --context --ask].freeze
 unknown = ARGV.each_with_index.select { |arg, i| arg.start_with?("-") && !OPTIONS.include?(arg) && !(i.positive? && WITH_VALUE.include?(ARGV[i - 1])) }.map(&:first)
@@ -51,6 +51,12 @@ end
 if ARGV.include?("--digest")
   require_relative "lib/daily_digest"
   DailyDigest.run(dry_run: ARGV.include?("--dry-run"))
+  exit
+end
+
+if ARGV.include?("--finanza")
+  require_relative "modules/finanza/finanza"
+  Finanza.run(dry_run: ARGV.include?("--dry-run"))
   exit
 end
 

@@ -44,8 +44,10 @@ module Site
     end
 
     FileUtils.mkdir_p(out_dir)
-    days.each { |day| File.write(File.join(out_dir, "#{day.date}.html"), page(day, days)) }
-    File.write(File.join(out_dir, "index.html"), page(days.first, days))
+    # Pagine aggiunte da altri (es. il modulo finanza): linkate solo se esistono.
+    extra = EXTRA_PAGES.select { |file, _| File.file?(File.join(out_dir, file)) }
+    days.each { |day| File.write(File.join(out_dir, "#{day.date}.html"), page(day, days, extra: extra)) }
+    File.write(File.join(out_dir, "index.html"), page(days.first, days, extra: extra))
     File.write(File.join(out_dir, "robots.txt"), "User-agent: *\nDisallow: /\n")
     File.write(File.join(out_dir, "digest.json"), JSON.generate(feed(days.first, days)))
     "Sito generato: #{days.size} #{days.size == 1 ? 'giorno' : 'giorni'} in #{out_dir}"
@@ -68,7 +70,9 @@ module Site
     CGI.escapeHTML(text.to_s)
   end
 
-  def self.page(day, days)
+  EXTRA_PAGES = { "finanza.html" => "Finanza", "piano-investimenti.html" => "Piano investimenti" }.freeze
+
+  def self.page(day, days, extra: {})
     groups = day ? sections(day) : []
     body = groups.each_with_index.map { |(label, entries), i| section(label, entries, i, groups.size) }.join
     chips = groups.size > 1 ? categories_nav(groups) : ""
@@ -90,6 +94,7 @@ module Site
       <header>
         <h1>#{heading}</h1>
         <nav class="archive" aria-label="Archivio">#{archive}</nav>
+        #{extra.empty? ? '' : %(<nav class="archive" aria-label="Altre pagine">#{extra.map { |f, l| %(<a href="#{h(f)}">#{h(l)}</a>) }.join}</nav>)}
         #{chips}
         <div class="tools">
           <input id="q" type="search" placeholder="Cerca nel digest…" aria-label="Cerca">
