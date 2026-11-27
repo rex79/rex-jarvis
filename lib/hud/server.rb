@@ -5,6 +5,7 @@ require_relative "status"
 require_relative "pairing"
 require_relative "tls"
 require_relative "../modules"
+require_relative "../ollama"
 require_relative "../tools/music"
 require_relative "../tools/copilot"
 
@@ -73,7 +74,8 @@ class HudServer
     method, path, headers, body = read_request(client)
     respond(client, method ? route(method, path, headers, body) : Response.new(400, "text/plain", "richiesta non valida"))
   rescue StandardError => e
-    respond(client, Response.new(500, "text/plain", "errore: #{e.message[0, 200]}"))
+    warn "[HUD] errore 500 su #{method} #{path.to_s.split('?').first}: #{e.class}: #{e.message[0, 200]}"
+    respond(client, Response.new(500, "application/json", JSON.generate(error: "Errore interno (#{e.class}): #{e.message[0, 200]}")))
   ensure
     client.close
   end
@@ -141,6 +143,8 @@ class HudServer
     Response.new(200, "application/json", JSON.generate(yield))
   rescue ArgumentError, Music::Error, Copilot::Error => e
     Response.new(422, "application/json", JSON.generate(error: e.message))
+  rescue Ollama::Unavailable => e # il modello locale non ce l'ha fatta: lo si dice chiaramente
+    Response.new(503, "application/json", JSON.generate(error: e.message))
   end
 
   def copilot_active?
@@ -168,8 +172,15 @@ class HudServer
     raise ArgumentError, "comando vuoto" if text.empty?
     raise ArgumentError, "comando troppo lungo" if text.length > 2000
 
+    started = Time.now
     reply = @lock.synchronize { @dispatcher.handle(text) }
     { label: reply.label, text: reply.text.to_s, links: Array(reply.links), copilot_active: copilot_active? }
+  rescue ArgumentError, Music::Error, Copilot::Error
+    raise
+  rescue StandardError => e
+    # Nel log (solo su questo computer) restano l'errore e l'inizio della frase, per capire cosa è successo.
+    warn "[HUD] richiesta non riuscita dopo #{(Time.now - started).to_i}s: #{e.class}: #{e.message[0, 200]} — #{text.to_s[0, 80].inspect}" if started
+    raise
   end
 
   def music(data)
@@ -226,7 +237,7 @@ class HudServer
   def respond(client, response)
     body = response.body.to_s.b
     reason = { 200 => "OK", 400 => "Bad Request", 403 => "Forbidden", 404 => "Not Found",
-               422 => "Unprocessable Entity", 500 => "Internal Server Error" }[response.status]
+               422 => "Unprocessable Entity", 500 => "Internal Server Error", 503 => "Service Unavailable" }[response.status]
     client.write "HTTP/1.1 #{response.status} #{reason}\r\n" \
                  "Content-Type: #{response.type}\r\nContent-Length: #{body.bytesize}\r\n" \
                  "Cache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n" \

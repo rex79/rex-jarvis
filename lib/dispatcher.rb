@@ -40,7 +40,9 @@ class Dispatcher
 
     # I moduli (dispensa, …) sono personali: mai con parole o prefisso di lavoro, né a metà di una
     # conversazione con Copilot.
-    if personal_command?(text) && (name, reply = @modules.handle(text.to_s.sub(/\A\s*(personale|personal)\s*[:,]\s*/i, "")))
+    # Chi dice "personale" vuole restare dentro: i moduli rispondono solo ai comandi certi.
+    said_personal = text.to_s.match?(/\A\s*personale?\b/i)
+    if personal_command?(text) && (name, reply = @modules.handle(text.to_s.sub(/\A\s*(personale|personal)\s*[:,]\s*/i, ""), strict: said_personal))
       return Reply.new("personale · #{name}", reply.text, reply.links)
     end
 

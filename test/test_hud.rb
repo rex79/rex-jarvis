@@ -16,6 +16,9 @@ class HudServerTest < Minitest::Test
 
     def handle(text)
       @texts << text
+      raise Ollama::Unavailable, "Il modello locale non ha risposto" if text == "lento"
+      raise "rotto" if text == "guasto"
+
       Dispatcher::Reply.new("personale · test", "risposta a #{text}")
     end
   end
@@ -82,6 +85,16 @@ class HudServerTest < Minitest::Test
     assert_equal 200, r.status
     assert_equal ["riprendi la musica"], @dispatcher.texts
     assert_equal "personale · test", JSON.parse(r.body)["label"]
+  end
+
+  def test_a_slow_local_model_gives_a_clear_message_and_failures_are_logged
+    r = nil
+    _, log = capture_io { r = @server.route("POST", "/api/ask", headers, JSON.generate(text: "lento")) }
+    assert_equal 503, r.status
+    assert_equal "Il modello locale non ha risposto", JSON.parse(r.body)["error"]
+    assert_match(/\[HUD\] richiesta non riuscita dopo 0s: Ollama::Unavailable: .* — "lento"/, log)
+    _, log = capture_io { assert_raises(RuntimeError) { @server.route("POST", "/api/ask", headers, JSON.generate(text: "guasto")) } }
+    assert_includes log, 'RuntimeError: rotto — "guasto"'
   end
 
   def test_bad_requests_get_clear_errors
