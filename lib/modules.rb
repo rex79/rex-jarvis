@@ -4,7 +4,9 @@ require_relative "config"
 # il suo pezzo di dashboard e i suoi test, e si accende elencandola in JARVIS_MODULES
 # (es. JARVIS_MODULES=dispensa,voce in ~/.jarvis_env). Il nucleo non sa cosa fanno: chiede soltanto
 #   - handle(text): un comando riconosciuto con regole fisse, senza modello → testo (o Modules::Reply
-#     con dei link da mostrare sotto la risposta), oppure nil;
+#     con dei link da mostrare sotto la risposta), oppure nil. Un modulo può dichiarare
+#     handle(text, strict: false): strict è vero quando l'utente ha detto "personale", e allora il
+#     modulo risponde solo ai comandi di cui è certo, senza tentativi che portino la frase fuori;
 #   - tools / call_tool / prompt: strumenti in più per l'agente personale;
 #   - api(method, path, body, headers): le sue API sotto /api/modules/<nome>/…;
 #   - status: cosa mostrare nella dashboard (dentro /api/status → modules.<nome>);
@@ -47,9 +49,10 @@ module Modules
     def empty? = @modules.empty?
 
     # Il primo modulo che riconosce il comando risponde: [nome, testo] oppure nil.
-    def handle(text)
+    def handle(text, strict: false)
       @modules.each do |name, mod|
-        reply = mod.handle(text)
+        knows_strict = mod.method(:handle).parameters.any? { |_, param| param == :strict }
+        reply = knows_strict ? mod.handle(text, strict: strict) : mod.handle(text)
         return [name, reply.is_a?(Reply) ? reply : Reply.new(reply.to_s, [])] if reply
       end
       nil

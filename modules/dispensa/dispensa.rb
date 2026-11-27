@@ -11,6 +11,11 @@ require_relative "../../lib/modules"
 #   - Ricette e idee per i pasti usano un modello online (OpenRouter), a cui arriva la frase dell'utente.
 #     L'elenco degli alimenti gli arriva solo se l'utente chiede di usare quello che ha ("con quello che
 #     ho in frigo", "cosa cucino con gli avanzi"): "la ricetta della carbonara" resta la carbonara.
+#   - Le frasi che sembrano di cucina ma non sono una richiesta chiara ("come si fa il risotto",
+#     "ho voglia di pizza") vanno allo stesso modello, che può rispondere "non è cucina": allora la
+#     frase prosegue verso l'agente. Mai le frasi che parlano di note o promemoria, e mai quando
+#     l'utente ha detto "personale": lì valgono solo le richieste chiare.
+#   - Al modello online non arrivano mai note né altro del contesto personale.
 #   - Ogni piatto proposto porta un link alla ricerca di Cookidoo (ricette per il Bimby): Jarvis prepara
 #     solo l'indirizzo, il sito lo apre e lo usa l'utente dal suo browser, con il suo abbonamento.
 module Dispensa
@@ -146,21 +151,43 @@ module Dispensa
     HOME = /\b(?:in casa|avanzi|(?:(?:quello|quel|ciò|cosa|cos) che|cosa|cos) (?:ho|c è|ci sta|abbiamo|è rimasto|rimane|resta|avanza)\b(?! voglia))\b/
     # Il seguito di una richiesta: "vai con quello che ho in frigo", "ok, usa la dispensa".
     FOLLOW = /\A(?:(?:ok|sì|si|allora|dai|bene|va bene|invece|e)[\s,]+)*(?:(?:vai|andiamo|prova|proviamo|fai|facciamo|resta|rimani|cerca\w*)\s+(?:(?:pure|solo|invece)\s+)*con|solo con|con|usa|usiamo)\b/
+    # Note e promemoria restano all'agente, sul computer: mai al modello online.
+    PRIVATE = /\b(?:not[ae]|appunt\w*|promemoria|diario|ricorda\w*|scrivi\w*|salva\w*|annota\w*|brain)\b/
+    # Frasi di cucina senza le parole di una richiesta chiara: "come si cucina il polpo", "vorrei preparare il ragù".
+    COOKING = /\b(?:come (?:si )?(?:cucin\w*|cuoc\w*|prepar\w*)|(?:voglio|vorrei|vorremmo|volevo|devo|dobbiamo|posso|possiamo) (?:cucinare|preparare|cuocere))\b/
+    # Frasi generiche che sono di cucina solo se nominano un cibo: "come si fa il risotto", "ho voglia di pizza".
+    MAYBE = /\b(?:come (?:si )?(?:fa|fanno|faccio|facciamo)|(?:voglio|vorrei|vorremmo|volevo|devo|dobbiamo) (?:fare|mangiare)|(?:ho|abbiamo) voglia di|(?:mi|ci) (?:va|andrebbe))\b/
+    FOOD = %w[pasta riso risotto pizza focaccia pane torta dolce biscotti crostata tiramisù lasagne gnocchi ravioli tortellini
+              carbonara amatriciana ragù sugo pesto besciamella zuppa minestra minestrone vellutata brodo polenta frittata omelette
+              uova pollo tacchino manzo vitello maiale agnello coniglio salsiccia polpette hamburger burger bistecca arrosto
+              spezzatino cotoletta scaloppine pesce salmone tonno merluzzo orata branzino gamberi cozze vongole calamari polpo
+              baccalà verdure zucchine melanzane peperoni pomodori patate carote cipolle spinaci broccoli cavolfiore funghi
+              carciofi asparagi zucca insalata legumi fagioli ceci lenticchie piselli formaggio mozzarella ricotta parmigiano
+              crema budino gelato marmellata pancake crepes muffin plumcake ciambella ciambellone brioche cornetti cioccolato
+              mele pere banane fragole limone purè hummus couscous farro orzo quinoa pasticcio sformato parmigiana caponata
+              involtini spiedini tagliatelle spaghetti penne fusilli cannelloni piadina panino toast tramezzino bruschetta
+              crostini maionese salsa impasto].freeze
+    FOOD_KEYS = FOOD.flat_map { |word| Dispensa.key(word) }.freeze
     ARTICLE = /\A(?:(?:il|lo|la|i|gli|le|l|dei|degli|delle|del|della|dello|dell|di|d)\s+)+/
 
-    Action = Struct.new(:kind, :place, :items, :list_first, :home, :follow, keyword_init: true)
+    Action = Struct.new(:kind, :place, :items, :list_first, :home, :follow, :wide, keyword_init: true)
 
-    def self.parse(text)
+    # strict: solo le richieste chiare (l'utente ha detto "personale"); foods: le parole degli alimenti in casa.
+    def self.parse(text, strict: false, foods: -> { [] })
       clean = normalize(text)
       place = place_of(clean)
       if clean.match?(ADD)
         place && Action.new(kind: :add, place: place, items: items(clean.sub(ADD, "")))
       elsif clean.match?(REMOVE)
         Action.new(kind: :remove, place: place, items: items(clean.sub(REMOVE, "")))
+      elsif clean.match?(PRIVATE)
+        clean.match?(LIST) && (place || clean.match?(EVERYWHERE)) ? Action.new(kind: :list, place: place) : nil
       elsif clean.match?(COOK) && clean.match?(ASK)
         Action.new(kind: :cook, place: place, list_first: home?(clean) && clean.match?(LIST), home: home?(clean))
       elsif clean.match?(FOLLOW) && home?(clean)
         Action.new(kind: :cook, place: place, home: true, follow: true)
+      elsif !strict && (clean.match?(COOKING) || (clean.match?(MAYBE) && (Dispensa.key(clean) & (FOOD_KEYS + foods.call)).any?))
+        Action.new(kind: :cook, place: place, home: home?(clean), wide: true)
       elsif clean.match?(LIST) && (place || clean.match?(EVERYWHERE))
         Action.new(kind: :list, place: place)
       end
@@ -219,6 +246,8 @@ module Dispensa
       l'utente non ha nominato: se manca qualcosa di importante, dillo. Non ripetere l'elenco degli alimenti.
       #{SEARCHES.strip}
     PROMPT
+    # Per le frasi che forse non sono di cucina: il modello può tirarsi indietro.
+    UNSURE = 'Se la richiesta non riguarda cucina, cibo o ricette, rispondi soltanto con la parola NON_CUCINA.'.freeze
     FOLLOW_UP = 600 # secondi entro cui "vai con quello che ho in frigo" si riferisce alla richiesta precedente
     # Parole della domanda, non del piatto: servono solo a ricavare una ricerca se il modello non la dà.
     ASKING = %w[per che mi me ci si come fare faccio fa voglio vorrei posso potrei possiamo stasera oggi domani sera
@@ -230,14 +259,15 @@ module Dispensa
       @clock = clock
     end
 
-    def handle(text)
-      action = Commands.parse(text) or return nil
+    def handle(text, strict: false)
+      foods = -> { @store.all.values.flatten.flat_map { |item| Dispensa.key(item.name) } }
+      action = Commands.parse(text, strict: strict, foods: foods) or return nil
 
       case action.kind
       when :add then add(action.place, action.items)
       when :remove then remove(action.place, action.items, strict: !action.place.nil?)
       when :list then list(action.place)
-      when :cook then cook(text, action.list_first ? action.place || :all : nil, home: action.home, follow: action.follow)
+      when :cook then cook(text, action.list_first ? action.place || :all : nil, home: action.home, follow: action.follow, wide: action.wide)
       end
     end
 
@@ -271,16 +301,24 @@ module Dispensa
 
     # home: usa l'elenco degli alimenti; follow: la frase continua la richiesta di poco prima
     # ("ricetta per un dolce" … "vai con quello che ho in dispensa").
-    def cook(request, list_first = nil, home: false, follow: false)
+    # wide: la frase forse non è di cucina; se il modello lo conferma (o non risponde) → nil, e passa all'agente.
+    def cook(request, list_first = nil, home: false, follow: false, wide: false)
       intro = list_first && list(list_first == :all ? nil : list_first)
       request = request.to_s.strip[0, 500]
+      previous = @last_request
       before, at = @last_request
       @last_request = [request, Time.now]
       request = "#{before}\nPoi ha aggiunto: #{request}" if follow && before && Time.now - at < FOLLOW_UP
       content = "Richiesta: #{request}\n\n(Ricorda la riga finale RICERCHE:)"
       content = "Alimenti in casa:\n#{inventory}\n\n#{content}" if home
-      messages = [{ role: "system", content: home ? COOK_PROMPT : RECIPE_PROMPT }, { role: "user", content: content }]
+      system = [home ? COOK_PROMPT : RECIPE_PROMPT, wide ? UNSURE : nil].compact.join("\n")
+      messages = [{ role: "system", content: system }, { role: "user", content: content }]
       ideas = llm.chat(messages, options: { temperature: 0.6, num_predict: 500 })["message"]["content"].to_s
+      if wide && ideas.match?(/NON[_ ]?CUCINA/i)
+        puts "[DISPENSA] non era una richiesta di cucina: passa all'agente"
+        @last_request = previous
+        return nil
+      end
       ideas = ideas.gsub(/[*_#`]/, "").gsub(/^[ \t]*[-•][ \t]+/, "") # i modelli amano il Markdown: qui si legge ad alta voce
       searches = ideas[/^\s*RICERCHE:\s*(.+)$/i, 1].to_s.split(/[;\n]/).map { |q| q.gsub(/[^\p{L}\p{N}\s']/, " ").squeeze(" ").strip[0, 60] }
       ideas = ideas.sub(/^\s*RICERCHE:.*\z/im, "").gsub(/\n{3,}/, "\n\n").strip
@@ -288,6 +326,10 @@ module Dispensa
       links = searches.compact.reject(&:empty?).uniq.first(3).map { |query| Dispensa.cookidoo_link(query) }
       Modules::Reply.new([intro, ideas].compact.join("\n\n"), links)
     rescue StandardError => e
+      if wide # nel dubbio, senza il modello online, la frase resta all'agente
+        @last_request = previous
+        return nil
+      end
       [intro || (home ? list : nil), "Non riesco a chiedere idee al modello online (#{e.message[0, 120]})."].compact.join("\n\n")
     end
 

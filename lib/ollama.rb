@@ -4,6 +4,11 @@ require "uri"
 require_relative "config"
 
 class Ollama
+  # Il modello locale non c'è o non fa in tempo: un messaggio da mostrare così com'è.
+  class Unavailable < StandardError; end
+
+  READ_TIMEOUT = 300 # CPU lenta: le risposte possono richiedere minuti
+
   attr_reader :model
 
   def initialize(model: Config::MAIN_MODEL)
@@ -40,12 +45,16 @@ class Ollama
 
     http = Net::HTTP.new(uri.hostname, uri.port)
     http.open_timeout = 10
-    http.read_timeout = 300 # CPU lenta: le risposte possono richiedere minuti
+    http.read_timeout = READ_TIMEOUT
     http.write_timeout = 10
 
     response = http.request(request)
     raise "Ollama error: #{response.body}" unless response.is_a?(Net::HTTPSuccess)
 
     JSON.parse(response.body)
+  rescue Net::ReadTimeout
+    raise Unavailable, "Il modello locale non ha risposto entro #{READ_TIMEOUT / 60} minuti: questa macchina è troppo lenta per questa richiesta. Prova con una frase più breve o più precisa."
+  rescue Net::OpenTimeout, Errno::ECONNREFUSED, SocketError
+    raise Unavailable, "Il modello locale non è raggiungibile: controlla che Ollama sia acceso."
   end
 end

@@ -192,6 +192,7 @@ Cosa c'è in congelatore, frigo e dispensa, e cosa cucinarci. Detto a voce o scr
 | "Cercami la ricetta della carbonara" · "Un'idea per un dolce?" | risponde a quello che chiedi, senza guardare cosa hai in casa |
 | "Cosa cucino con quello che ho in casa?" · "Una ricetta con gli avanzi" | propone due o tre piatti con gli alimenti segnati |
 | "Ho in frigo zucchine e uova, cosa posso cucinare?" | come sopra: nominare frigo, congelatore o dispensa basta |
+| "Come si fa il risotto?" · "Ho voglia di pizza" | frasi che sembrano di cucina: risponde lo stesso modello, che se non è cucina le lascia all'agente |
 | "Vai con quello che ho in frigo" | riprende la richiesta di poco prima (entro 10 minuti) usando gli alimenti segnati |
 | "Cosa ho in congelatore e che posso mangiare a pranzo o cena?" | elenca e propone |
 
@@ -201,6 +202,10 @@ Cosa c'è in congelatore, frigo e dispensa, e cosa cucinarci. Detto a voce o scr
   digest), a cui arriva la tua frase; l'elenco degli alimenti gli arriva solo quando chiedi di usare quello
   che hai (un posto, "in casa", "quello che ho", "gli avanzi"). Se non risponde e avevi chiesto di usare
   quello che hai, ricevi comunque l'elenco.
+- **Cosa esce dal computer:** solo la frase di cucina e, se lo chiedi, l'elenco degli alimenti. Mai le note
+  né altro del contesto personale. Le frasi che parlano di note, appunti o promemoria ("scrivi una nota con
+  la ricetta…") restano all'agente locale, e se cominci con **personale** valgono solo le richieste chiare
+  ("la ricetta di…", "cosa cucino…"): le frasi dubbie non vengono mandate fuori per capire se sono di cucina.
 - **Provarlo dal terminale:** `ruby jarvis.rb --ask "personale: cercami la ricetta della carbonara"` stampa la
   risposta e, sotto, i link di Cookidoo.
 - **Dashboard:** sezione **Dispensa** con i tre elenchi; un tocco su un alimento chiede conferma, il secondo

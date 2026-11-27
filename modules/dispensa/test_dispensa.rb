@@ -106,6 +106,37 @@ class DispensaTest < Minitest::Test
     assert_equal "In frigo hai: zucchine.", @mod.handle("fai l'elenco di cosa ho in frigo") # elencare resta elencare
   end
 
+  def test_sentences_that_look_like_cooking_go_to_the_online_model
+    @mod.handle("metti in frigo lo stracchino")
+    ["Come si fa il risotto?", "Come si cucina il polpo", "Ho voglia di pizza", "Vorrei fare una torta di mele",
+     "Come faccio lo stracchino al forno?"].each do |text| # l'ultimo: un alimento che è in casa
+      assert_equal "Una frittata di zucchine.", @mod.handle(text).text, text
+      assert_includes @llm.messages.first[:content], "NON_CUCINA", text
+      refute_includes @llm.messages.last[:content], "Alimenti in casa", text
+    end
+  end
+
+  def test_the_online_model_can_send_a_sentence_back_to_the_agent
+    mod = Dispensa::Module.new(store: Dispensa::Store.new(@file), llm: FakeLLM.new(reply: "NON_CUCINA"))
+    assert_nil mod.handle("Come si prepara la valigia?")
+    assert_equal "NONCUCINA", mod.handle("Cercami la ricetta della carbonara").text # una richiesta chiara non torna indietro
+    assert_nil Dispensa::Module.new(store: Dispensa::Store.new(@file), llm: FakeLLM.new(fail: true)).handle("Come si fa il risotto?")
+  end
+
+  def test_notes_and_sentences_said_as_personal_never_reach_the_online_model
+    ["Come si fa a esportare le foto?", "Voglio fare una telefonata a mamma", "Mi va di uscire stasera",
+     "Scrivi una nota con la ricetta della carbonara", "Cerca nelle mie note la ricetta del risotto",
+     "Ricordami come si fa il risotto", "Come si cucina il polpo? Salvalo negli appunti"].each do |text|
+      assert_nil @mod.handle(text), text
+    end
+    ["Come si fa il risotto?", "Ho voglia di pizza", "Come si cucina il polpo"].each do |text|
+      assert_nil @mod.handle(text, strict: true), text
+    end
+    assert_nil @llm.messages
+    assert_equal "Una frittata di zucchine.", @mod.handle("Cercami la ricetta della carbonara", strict: true).text # richiesta chiara
+    assert_equal "Aggiunto in frigo: latte.", @mod.handle("metti in frigo il latte", strict: true)
+  end
+
   def test_each_proposed_dish_gets_a_cookidoo_search_link
     llm = FakeLLM.new(reply: "**Frittata** di zucchine: sbatti le uova.\n\n- Salmone al forno.\n\nRICERCHE: Frittata di zucchine; salmone al forno!; <script>; ; quarto; quinto")
     reply = Dispensa::Module.new(store: Dispensa::Store.new(@file), llm: llm).handle("cosa posso cucinare per cena?")

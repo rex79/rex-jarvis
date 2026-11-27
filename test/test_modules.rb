@@ -78,6 +78,10 @@ class DispatcherModulesTest < Minitest::Test
     assert_equal "pong", reply.text
     assert_empty @agents
     assert_equal "pong", dispatcher.handle("personale: ping").text
+    strict = Class.new(Modules::Base) { def handle(text, strict: false) = "#{text} #{strict}" }.new
+    careful = Dispatcher.new(modules: Modules::Set.new("s" => strict), agent_factory: ->(context) { FakeAgent.new(context) })
+    assert_equal "come si fa false", careful.handle("come si fa").text
+    assert_equal "come si fa true", careful.handle("Personale, come si fa").text # detto "personale": solo comandi certi
   end
 
   def test_work_never_reaches_a_module
