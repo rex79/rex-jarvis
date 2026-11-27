@@ -372,3 +372,23 @@ client pubblico, permesso delegato Power Platform `CopilotStudio.Copilots.Invoke
   resta nel Portachiavi di macOS (`msal-extensions`), mai in chiaro su disco.
 - L'agente usa i suoi strumenti (salvataggi, Jira, posta…) come quando lo usi da Teams: una richiesta
   come "salvamelo" fa davvero salvare.
+
+## Finanza (modules/finanza)
+Il piccolo portafoglio Fineco (ETF azionario globale + ETF monetario + PAC): ogni mattina alle 6:30 Jarvis
+aggiorna `finanza.html` sul sito del digest e manda su Telegram (via `hermes send`) solo le proposte nuove,
+il riepilogo della domenica e il promemoria due giorni prima della rata.
+
+- Impostazioni: `~/brain/finanza/portafoglio.yml` (creato al primo avvio: obiettivo, cuscinetto, ETF, PAC, soglie, fonti).
+- Acquisti: `~/brain/finanza/movimenti.csv` (`data,isin,quote,prezzo,nota`). Con `pac.attivo: true` le rate le
+  aggiunge Jarvis al prezzo di chiusura del giorno di esecuzione (stima, correggibile a mano).
+- Le proposte nascono solo da regole in codice (`Finanza::Rules`); Ollama riassume le notizie in una frase e basta.
+- Dati: prezzi Yahoo Finance, tassi API BCE, notizie RSS (Sole 24 Ore, FT, BCE, MarketWatch).
+
+```bash
+ruby jarvis.rb --finanza --dry-run   # stampa il report, senza Ollama, Telegram né upload
+ruby jarvis.rb --finanza             # giro completo
+ruby modules/finanza/test_finanza.rb
+```
+Cron: `30 6 * * * cd ~/jarvis && ruby jarvis.rb --finanza >> ~/jarvis-finanza.log 2>&1`.
+Variabili opzionali: `JARVIS_FINANZA_MODEL` (default il modello principale), `HERMES_BIN`.
+Con `finanza` in `JARVIS_MODULES`, in chat "come va il portafoglio?" risponde con l'ultimo riepilogo.
