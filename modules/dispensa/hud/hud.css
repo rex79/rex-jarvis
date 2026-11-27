@@ -13,8 +13,8 @@
 }
 .dispensa form input:focus { outline: 0; border-color: var(--cyan); }
 .dispensa form button { min-width: 48px; font-size: 18px; letter-spacing: 0; }
-body[data-mode="personal"] .dispensa .list button { font-size: 17px; }
-body[data-mode="personal"] .dispensa form input { font-size: 17px; min-height: 52px; }
+body[data-layout="tablet"] .dispensa .list button { font-size: 17px; }
+body[data-layout="tablet"] .dispensa form input { font-size: 17px; min-height: 52px; }
 
 .cookidoo-search { display: flex; gap: 8px; margin-bottom: 16px; }
 .cookidoo-search input {
@@ -22,7 +22,7 @@ body[data-mode="personal"] .dispensa form input { font-size: 17px; min-height: 5
   color: var(--text); font: inherit; font-size: 14px;
 }
 .cookidoo-search input:focus { outline: 0; border-color: var(--cyan); }
-body[data-mode="personal"] .cookidoo-search input { font-size: 17px; min-height: 52px; }
+body[data-layout="tablet"] .cookidoo-search input { font-size: 17px; min-height: 52px; }
 
 /* Riquadro interno: copre tutta la dashboard (anche il tasto Voce e la schermata a riposo). */
 .webview { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; background: var(--bg); }

@@ -7,7 +7,7 @@
 .voice-toggle[data-state="listening"] { background: var(--green); border-color: var(--green); animation: voice-pulse 1.4s ease-in-out infinite; }
 .voice-toggle[data-state="thinking"] { background: var(--amber); border-color: var(--amber); }
 .voice-toggle[data-state="speaking"] { background: var(--cyan-soft); border-color: var(--cyan-soft); }
-body[data-mode="personal"] .voice-toggle { bottom: 96px; min-height: 68px; font-size: 16px; } /* sopra le schede */
+body[data-layout="tablet"] .voice-toggle { bottom: 96px; min-height: 68px; font-size: 16px; } /* sopra le schede */
 body.resting .voice-toggle { visibility: hidden; }
 body[data-state="listening"] .r2 { animation-duration: 6s; }
 body[data-state="speaking"] .core-glow { animation-duration: 1.2s; }
