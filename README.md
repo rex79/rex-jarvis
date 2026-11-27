@@ -334,6 +334,13 @@ ruby jarvis.rb --hud-revoke                             # tablet perso: rimuove 
 Sul tablet apri `http://192.168.2.26:7777` e inserisci il codice. Dopo un `git pull` che cambia il codice
 Ruby rilancia `bin/hud-service install`.
 
+**Senza numero di porta (nginx):** `sudo deploy/installa-nginx.sh` mette davanti nginx con la
+configurazione `deploy/nginx-jarvis.conf`: `http://192.168.2.26` rimanda a `https://192.168.2.26/`
+(dashboard) e `/digest/` porta al digest e alla pagina Finanza (dashboard servizi, porta 8080). Usa il
+certificato in `~/.jarvis` e passa all'HUD Host e Origin con la sua porta, così i suoi controlli restano
+validi. Ogni dispositivo va abbinato di nuovo sul nuovo indirizzo; le porte 7777 e 8080 restano attive.
+Con ufw attivo: `sudo ufw allow from 192.168.2.0/24 to any port 80,443 proto tcp`.
+
 - **Interfaccia per il tocco:** una sezione alla volta con pulsanti grandi (Casa, Jarvis, Digest, Sistema,
   più le sezioni dei moduli accesi). **Schermo intero**, in alto a destra, toglie le barre del browser.
   Dopo 3 minuti senza tocchi compare la schermata a riposo con l'ora, che si sposta di poco ogni minuto
