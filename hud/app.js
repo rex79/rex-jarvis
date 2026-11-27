@@ -44,7 +44,7 @@ function tick() {
   const now = new Date();
   setText('time', now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
   setText('date', now.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }));
-  if (paired) {
+  if (paired && tablet()) {
     setText('rest-time', now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }));
     setText('rest-date', $('date').textContent);
     if (now.getSeconds() === 0) shiftRest(); // lo schermo resta acceso: niente immagini sempre ferme
@@ -233,7 +233,7 @@ $('console').addEventListener('submit', async (event) => {
   input.disabled = true;
   await ask(text);
   input.disabled = false;
-  if (!paired) input.focus(); // sul tablet riaprirebbe la tastiera
+  if (!paired || !tablet()) input.focus(); // sul tablet riaprirebbe la tastiera
 });
 
 document.querySelectorAll('[data-music]').forEach((button) => {
@@ -295,11 +295,42 @@ function renderHome(s) {
     `Ollama ${(s.ollama || {}).online ? 'online' : 'non raggiungibile'}`].join(' · '));
 }
 
+// Disposizione sulla rete di casa: "tablet" (una sezione alla volta, schede, schermata a riposo) oppure
+// "desktop" (le tre colonne, tutto insieme). Il contesto resta personale in entrambe: cambia solo l'aspetto.
+// Di default desktop con schermo largo e mouse; la scelta fatta con il tasto resta su questo dispositivo.
+const LAYOUT = 'jarvis-layout';
+const wideScreen = window.matchMedia('(min-width: 1101px) and (hover: hover) and (pointer: fine)');
+function tablet() { return document.body.dataset.layout === 'tablet'; }
+function chosenLayout() {
+  try { const saved = localStorage.getItem(LAYOUT); if (saved === 'tablet' || saved === 'desktop') return saved; } catch { /* nessuna preferenza */ }
+  return wideScreen.matches ? 'desktop' : 'tablet';
+}
+function applyLayout(layout) {
+  document.body.dataset.layout = layout;
+  const isTablet = layout === 'tablet';
+  $('home').hidden = !isTablet;
+  $('tabs').hidden = !isTablet;
+  $('layout-toggle').textContent = isTablet ? 'Vista desktop' : 'Vista tablet';
+  if (isTablet) {
+    setView('casa');
+  } else {
+    document.querySelectorAll('[data-view]').forEach((el) => el.classList.remove('active'));
+    $('rest').hidden = true;
+    document.body.classList.remove('resting');
+  }
+}
+
 if (paired) {
   document.body.dataset.mode = 'personal';
-  $('home').hidden = false;
-  $('tabs').hidden = false;
-  setView('casa');
+  applyLayout(chosenLayout());
+  $('layout-toggle').hidden = false;
+  $('layout-toggle').addEventListener('click', () => {
+    const next = tablet() ? 'desktop' : 'tablet';
+    try { localStorage.setItem(LAYOUT, next); } catch { /* vale fino alla chiusura */ }
+    applyLayout(next);
+  });
+  // Finché non si sceglie con il tasto, la disposizione segue la larghezza della finestra.
+  wideScreen.addEventListener('change', () => { try { if (localStorage.getItem(LAYOUT)) return; } catch { /* segue lo schermo */ } applyLayout(chosenLayout()); });
   document.querySelectorAll('[data-go]').forEach((el) => el.addEventListener('click', () => setView(el.dataset.go)));
   ['pointerdown', 'keydown'].forEach((type) => document.addEventListener(type, () => { lastTouch = Date.now(); }));
   $('rest').addEventListener('click', () => {
@@ -335,13 +366,13 @@ $('pair-form').addEventListener('submit', async (event) => {
 // Quello che un modulo (modules/<nome>/hud/hud.js) può usare della dashboard, senza toccare questo file.
 const statusListeners = [];
 window.Jarvis = {
-  $, api, ask, log, setState, refresh, paired, openLink,
+  $, api, ask, log, setState, refresh, paired, openLink, tablet,
   onLink(handler) { linkHandlers.push(handler); }, // handler(link) → true se l'ha aperto lui
   busy(on) { if (on) document.body.dataset.busy = '1'; else delete document.body.dataset.busy; }, // niente schermata a riposo
   token: () => token,
   touch() { lastTouch = Date.now(); },
   onStatus(listener) { statusListeners.push(listener); },
-  // Aggiunge una sezione: riquadro, scheda del tablet e riquadro nella schermata Casa.
+  // Aggiunge una sezione: riquadro (colonna sinistra, sotto Sistema), scheda del tablet e riquadro nella schermata Casa.
   // Restituisce { panel, tile } dove tile è il paragrafo di riepilogo nella Casa.
   addView({ id, title, tab }) {
     const panel = document.createElement('section');
@@ -350,7 +381,7 @@ window.Jarvis = {
     const heading = document.createElement('h2');
     heading.textContent = title;
     panel.append(heading);
-    document.querySelector('.layout > aside.col:last-of-type').prepend(panel);
+    document.querySelector('.layout > aside.col').append(panel); // colonna sinistra: a destra resta il digest
 
     const tabButton = document.createElement('button');
     tabButton.type = 'button';
@@ -380,6 +411,5 @@ setInterval(refresh, 5000);
 if (paired) {
   if (!token) showPairing();
   $('command').placeholder = 'Dimmi cosa fare…';
-} else {
-  $('command').focus(); // non sul tablet: aprirebbe la tastiera a ogni caricamento
 }
+if (!paired || !tablet()) $('command').focus(); // non sul tablet: aprirebbe la tastiera a ogni caricamento
